@@ -1,4 +1,6 @@
 `include "Sysbus.defs"
+`include "src/consts.sv"
+`include "src/cache.sv"
 
 module top
 #(
