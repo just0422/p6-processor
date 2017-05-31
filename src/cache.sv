@@ -12,31 +12,34 @@ module cache
   // Memoory Read Request Interface
   input bus_respcyc,
   output bus_respack,
-  input [BUS_DATA_WIDTH - 1 : 0] bus_resp,
-  input [BUS_TAG_WIDTH - 1 : 0] bus_resptag,
+  input [`BUS_DATA_WIDTH - 1 : 0] bus_resp,
+  input [`BUS_TAG_WIDTH - 1 : 0] bus_resptag,
 
   // Memory Write Request interface
   output bus_reqcyc,
   input bus_reqack,
-  output [BUS_DATA_WIDTH - 1 : 0] bus_req,
-  output [BUS_TAG_WIDTH - 1 : 0] bus_reqtag,
+  output [`BUS_DATA_WIDTH - 1 : 0] bus_req,
+  output [`BUS_TAG_WIDTH - 1 : 0] bus_reqtag,
 
   // Instruction Read Request
-  input instr_read,
-  input [`ADDRSIZE - 1 : 0] instruction_address,
-  output [`INSTRSIZE - 1 : 0] instruction_repsonse,
+  input instruction_read,
+  input [`ADDRESS_SIZE - 1 : 0] instruction_address,
+  output [`INSTRUCTION_SIZE - 1 : 0] instruction_response,
   output instruction_busy,
 
   // Data Request
   input mem_read,
   input mem_write,
-  input [`ADDRSIZE - 1 : 0] data_address,
-  output [`DATASIZE - 1 : 0] data_repsonse,
+  input [`ADDRESS_SIZE - 1 : 0] data_address,
+  output [`DATA_SIZE - 1 : 0] data_response,
   output data_busy
 );
 
   data_cache_block [`WAYS - 1 : 0] data_way;
-  instr_cache_block [`WAYS - 1 : 0] instr_way;
+  instruction_cache_block [`WAYS - 1 : 0] instruction_way;
+
+  logic busy_register;
+  logic [`BUS_DATA_WIDTH - 1 : 0] response_register;
   
   task reset_signals;
     begin
@@ -48,22 +51,28 @@ module cache
     end
   endtask
   
+  // Read from both caches simultaneously
   task read;
-    input [`ADDRSIZE - 1 : 0] address;
+    input [`ADDRESS_SIZE - 1 : 0] address;
+    output [`DATA_SIZE - 1 : 0] value;
     output success;
-    output [`DATASIZE - 1 : 0] val;
     begin
-      cache_instruction addr = address;
-      logic success = 0;
-
-      for (int i = 0; i < `INDEXSIZE; i++) begin
-        if (addr.tag == data_way[i].tag) begin
+      cache_address ca = address;
+      success = 0;
+      value = 0;
+      
+      // No break because no block should evern have the same tag
+      for (int i = 0; i < `INDEX_SIZE; i++) begin
+        data_cache_line dcl = data_way[i];
+        if (ca.tag == dcl.cl.tag) begin
           success = 1;
-          value = data_way[i].data_cells[addr.tag];
+          value = dcl.data_cells[ca.offset];
         end 
-        if (addr.tag == instr_way[i].tag) begin
+
+        instruction_cache_line icl = instruction_way[i];
+        if (ca.tag == icl.cl.tag) begin
           success = 1;
-          value = instr_way[i].data_cells[addr.tag];
+          value = icl.data_cells[ca.offset];
         end 
       end
     end
@@ -72,17 +81,30 @@ module cache
 
   // Make request to Memory
   always_comb begin
+    logic success = 0;
     if (!reset) begin
       if (mem_read ^ mem_write) begin
         // Send a data read request
-      end else if (instr_read) begin
+      end 
+      if (instruction_read) begin// && !busy_register) begin
+        logic [`DATA_SIZE - 1 : 0] ir;
         // Check cache
+        read(instruction_address, ir, success);
+        instruction_response = ir[`INSTRUCTION_SIZE - 1 : 0];
 
-
-        // Send an instruction read request
-        bus_req = instruction_address;
-        bus_reqtag = `MEMR;
-        bus_reqcyc = 1;
+        // If Instruction is not in cache
+        if (!success) begin
+          // Send an instruction read request
+          bus_req = instruction_address;
+          bus_reqtag = `MEMORY;
+          bus_reqcyc = 1;
+          instruction_busy = 1;
+        end
+      end
+      if (bus_reqack) begin
+          bus_reqcyc = 0;
+          bus_req = 0;
+          // Once memory acknowledges our request
       end
     end
   end
@@ -90,6 +112,12 @@ module cache
   // Make Reset Signals when request returns
   always_ff @(posedge clk) begin
     bus_respack <= 0;
+//    busy_register <= data_busy | instruction_busy;
+
+    if (bus_respcyc) begin
+      response_register <= bus_resp;
+      bus_respack <= 0;
+    end
   end
 
   // Insert into cache and return to processor

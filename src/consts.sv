@@ -1,44 +1,46 @@
-`define ADDRSIZE      64
-`define BLOCKSIZE     64
-`define BLOCKSPERWAY  32
-`define DATASIZE      64
-`define DIRTY          1
-`define INSTRSIZE     32
-`define MEMR     0'h1100
-`define OFFSETSIZE     6
-`define SETSIZE        4
-`define TAGSIZE       56
-`define VALID          1
-`define WAYS           4
+`define ADDRESS_SIZE          64
+`define BLOCK_SIZE         64
+`define BLOCKS_PER_WAY      32
+`define BUS_DATA_WIDTH    64
+`define BUS_TAG_WIDTH     13
+`define DATA_SIZE          64
+`define DIRTY              1
+`define INSTRUCTION_SIZE         32
+`define MEMORY         0'h1100
+`define OFFSET_SIZE         6
+`define INDEX_SIZE          4
+`define TAG_SIZE           56
+`define VALID              1
+`define WAYS               4
 
 
 // CACHE CONSTANTS
 typedef struct packed {
-   logic [`TAGSIZE - 1 : 0] tag;
-   logic [`SETSIZE - 1 : 0] set;
-   logic [`OFFSETSIZE - 1 : 0] offset;
-} cache_instruction;
+   logic [`TAG_SIZE - 1 : 0] tag;
+   logic [`INDEX_SIZE - 1 : 0] index;
+   logic [`OFFSET_SIZE - 1 : 0] offset;
+} cache_address;
 
 typedef struct packed {
    logic valid;
    logic dirty;
-   logic [`TAGSIZE - 1 : 0] tag;
+   logic [`TAG_SIZE - 1 : 0] tag;
 } cache_line;
 
 // Data Cache Block
-typedef logic [`DATASIZE - 1 : 0] data;
+typedef logic [`DATA_SIZE - 1 : 0] cache_data; // One Cell of Size 64
 typedef struct packed {
-  cache_line cache;
-  data [`OFFSETSIZE - 1 : 0] data_cells;
+  cache_line cl;
+  cache_data [`OFFSET_SIZE - 1 : 0] data_cells; // 64 byte offset (8 words)
 } data_cache_line;
-typedef data_cache_line[`BLOCKSPERWAY - 1 : 0] data_cache_block;
+typedef data_cache_line[`BLOCKS_PER_WAY - 1 : 0] data_cache_block;
 
 // Instruction cache block
-typedef logic [`INSTRSIZE - 1 : 0] instr;
+typedef logic [`INSTRUCTION_SIZE - 1 : 0] cache_instruction;
 typedef struct packed {
   cache_line cache;
-  instr [`OFFSETSIZE - 1 : 0] instr_cells;
-} instr_cache_line;
-typedef instr_cache_line[`BLOCKSPERWAY - 1 : 0] instr_cache_block;
+  cache_instruction [`OFFSET_SIZE - 1 : 0] instruction_cells;
+} instruction_cache_line;
+typedef instruction_cache_line[`BLOCKS_PER_WAY - 1 : 0] instruction_cache_block;
 
 
