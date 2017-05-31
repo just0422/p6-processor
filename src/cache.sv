@@ -43,6 +43,8 @@ module cache
 
   logic busy_register;
   logic [`BUS_DATA_WIDTH - 1 : 0] response_register;
+  logic waiting; // Waiting for memory response
+  logic miss; // Did we miss in cache??
   
   task reset_signals;
     begin
@@ -59,7 +61,6 @@ module cache
     input [`ADDRESS_SIZE - 1 : 0] address;
     input instruction_or_data;
     output [`DATA_SIZE - 1 : 0] value;
-    output miss;
     begin
       cache_address ca = address;
       miss = 1;
@@ -89,15 +90,14 @@ module cache
   task insert;
     input [`ADDRESS_SIZE - 1 : 0] address;
     input [`DATA_SIZE - 1 : 0] value;
-    input inistruction_or_data;
+    input instruction_or_data;
     begin
     end
-  end
+  endtask
 
 
   // Make request to Memory
   always_comb begin : cache_or_mem
-    logic miss = 0;
     if (!reset) begin
       if (mem_read ^ mem_write) begin
         // Send a data read request
@@ -106,18 +106,10 @@ module cache
       if (instruction_read) begin// && !busy_register) begin
         logic [`DATA_SIZE - 1 : 0] ir;
         // Check cache
-        read(instruction_address, 0, ir, miss);
+        read(instruction_address, 0, ir);
         instruction_response = ir[`INSTRUCTION_SIZE - 1 : 0];
 
-        // If Instruction is not in cache
-        if (miss) begin
-          // Send an instruction read request
-          bus_req = instruction_address;
-          bus_reqtag = `MEMORY;
-          bus_reqcyc = 1;
-          busy = 1;
-        end
-      end
+     end
       if (bus_reqack) begin
           bus_reqcyc = 0;
           bus_req = 0;
@@ -126,20 +118,38 @@ module cache
     end
   end
 
+  logic response_received;
+  logic waiting_register;
   // Make Reset Signals when request returns
   always_ff @(posedge clk) begin
+    // If Instruction is not in cache
+    if (miss & !waiting) begin
+      // Send an instruction read request
+      bus_req = instruction_address;
+      bus_reqtag = `MEM_READ;
+      bus_reqcyc = 1;
+      busy = 1;
+      waiting = 1;
+    end
+
+
     bus_respack <= 0;
+    response_received <= 0;
 //    busy_register <= data_busy | instruction_busy;
 
     if (bus_respcyc) begin
       response_register <= bus_resp;
       bus_respack <= 1;
+      response_received <= 1;
+    end
+
+    if (bus_resptag == `MEM_READ) begin
+      waiting = 0;
     end
   end
 
   // Insert into cache and return to processor
   always_comb begin
     logic [`BUS_DATA_WIDTH - 1 : 0] response = response_register;
-
   end
 endmodule

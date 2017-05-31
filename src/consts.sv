@@ -1,17 +1,17 @@
-`define ADDRESS_SIZE          64
-`define BLOCK_SIZE         64
-`define BLOCKS_PER_WAY      32
-`define BUS_DATA_WIDTH    64
-`define BUS_TAG_WIDTH     13
-`define DATA_SIZE          64
-`define DIRTY              1
-`define INSTRUCTION_SIZE         32
-`define MEMORY         0'h1100
-`define OFFSET_SIZE         6
-`define INDEX_SIZE          4
-`define TAG_SIZE           56
-`define VALID              1
-`define WAYS               4
+`define ADDRESS_SIZE           64
+`define BLOCK_SIZE             64
+`define BLOCKS_PER_WAY         32
+`define BUS_DATA_WIDTH         64
+`define BUS_TAG_WIDTH          13
+`define DATA_SIZE              64
+`define DIRTY                   1
+`define INSTRUCTION_SIZE       32
+`define MEM_READ          0'h1100
+`define OFFSET_SIZE             6
+`define INDEX_SIZE              4
+`define TAG_SIZE               56
+`define VALID                   1
+`define WAYS                    4
 
 
 // CACHE CONSTANTS
