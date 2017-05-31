@@ -30,7 +30,7 @@ typedef struct packed {
 // Data Cache Block
 typedef logic [`DATA_SIZE - 1 : 0] cache_data; // One Cell of Size 64
 typedef struct packed {
-  cache_line cl;
+  cache_line vdt;
   cache_data [`OFFSET_SIZE - 1 : 0] data_cells; // 64 byte offset (8 words)
 } data_cache_line;
 typedef data_cache_line[`BLOCKS_PER_WAY - 1 : 0] data_cache_block;
@@ -38,7 +38,7 @@ typedef data_cache_line[`BLOCKS_PER_WAY - 1 : 0] data_cache_block;
 // Instruction cache block
 typedef logic [`INSTRUCTION_SIZE - 1 : 0] cache_instruction;
 typedef struct packed {
-  cache_line cache;
+  cache_line vdt;
   cache_instruction [`OFFSET_SIZE - 1 : 0] instruction_cells;
 } instruction_cache_line;
 typedef instruction_cache_line[`BLOCKS_PER_WAY - 1 : 0] instruction_cache_block;

@@ -29,19 +29,31 @@ module top
 
   logic [63:0] pc;
 
+  int x = 0;
+  always_ff @(posedge clk) begin
+    x++;
+    if (x > 200)
+      $finish;
+  end
+
   always @ (posedge clk)
     if (reset) begin
       pc <= entry;
     end else begin
       $display("Hello World!  @ %x", pc);
-      $finish;
+//      $finish;
     end
+
+  always_ff @ (posedge clk) begin
+    if (!reset)
+      instruction_read = 1;
+  end
 
 /************************** INSTRUCTION FETCH ******************************/
   logic [`INSTRUCTION_SIZE-1:0] instruction_response;
   logic [`INSTRUCTION_SIZE-1:0] instruction_address;
   logic instruction_read;
-  logic instruction_busy;
+  logic busy;
   
   logic [`DATA_SIZE-1:0] d_req_r, d_req_w, d_write, d_data;
   logic mem_read, mem_write;
@@ -58,17 +70,21 @@ module top
     .bus_resptag(bus_resptag),        .bus_req(bus_req),
     .bus_resp(bus_resp),              .bus_reqtag(bus_reqtag), 
          
+    .busy(busy),
     
     .instruction_read(instruction_read),
     .instruction_address(instruction_address),
     .instruction_response(instruction_response),
-    .instruction_busy(instruction_busy),
 
     .mem_read(0),
     .mem_write(0)
   );
 
-
+  always_ff @(posedge clk) begin
+    if (!busy) begin
+    //  pc <= pc + 4;
+    end
+  end
 
   initial begin
     $display("Initializing top, entry point = 0x%x", entry);
