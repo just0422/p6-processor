@@ -38,8 +38,8 @@ module cache
   //output data_busy
 );
 
-  data_cache_block [`WAYS - 1 : 0] data_way;
-  instruction_cache_block [`WAYS - 1 : 0] instruction_way;
+  cache_block [`WAYS - 1 : 0] data_way; // 32 KB Data Cache
+  cache_block [`WAYS - 1 : 0] instruction_way; // 32 KB Instruction Cache
 
   logic busy_register;
   logic [`BUS_DATA_WIDTH - 1 : 0] response_register;
@@ -55,43 +55,59 @@ module cache
       instruction_response = 0;
     end
   endtask
-  
-  // Read from both caches simultaneously
+
+
+ 
   task read;
     input [`ADDRESS_SIZE - 1 : 0] address;
-    input instruction_or_data;
+    input full_cache fc_in;
     output [`DATA_SIZE - 1 : 0] value;
     begin
       cache_address ca = address;
+
       miss = 1;
       value = 0;
-      
+
       // No break because no block should ever have the same tag
-      if (instruction_or_data) begin
-        for (int i = 0; i < `INDEX_SIZE; i++) begin
-          data_cache_line dcl = data_way[i];
-          if (ca.tag == dcl.vdt.tag && dcl.vdt.valid && !dcl.vdt.dirty) begin // IF address tag and cache set tag are the same
-            miss = 0;
-            value = dcl.data_cells[ca.offset]; // grab value at offset
-          end 
-        end
-      end else begin
-        for (int i = 0; i < `INDEX_SIZE; i++) begin
-          instruction_cache_line icl = instruction_way[i];
-          if (ca.tag == icl.vdt.tag && icl.vdt.valid && !icl.vdt.dirty) begin
-            miss = 0;
-            value = icl.instruction_cells[ca.offset];
-          end 
-        end
+      for (int i = 0; i < `WAYS; i++) begin
+        cache_block cb = fc_in[i];  // Get block 'cb' at way[i]
+        cache_line cl = cb[ca.index]; // Get cache line 'cl' cb[index]
+        if (ca.tag == cl.tag && cl.valid) begin // IF address tag and cache set tag are the same
+          miss = 0;
+          busy = 0; // Reset busy once found
+          value = cl.cache_cells[ca.offset]; // grab value at offset
+    //      fix_lru(i, ca.index, instruction_or_data);
+        end 
       end
     end
   endtask
 
-  task insert;
+/*  task evict;
     input [`ADDRESS_SIZE - 1 : 0] address;
-    input [`DATA_SIZE - 1 : 0] value;
     input instruction_or_data;
     begin
+    end
+  endtask
+*/
+  task insert;
+    input [`ADDRESS_SIZE - 1 : 0] address;
+    input [`DATA_SIZE *  - 1 : 0] value;
+    input full_cache fc_in;
+    output full_cache fc_out;
+    begin
+      cache_address ca = address;
+      int way = $random() % `WAYS;
+
+      cache_block cb = fc_in[way];  // Get block 'dcb' at way[i]
+      cache_line cl = cb[ca.index]; // Get cache line 'dcl' dcb[index]
+      if (cl.lru >= `WAYS - 1) begin
+        cl = 0;
+        cl.valid = 1;
+        cl.cache_cells = value;
+      end
+
+      cb[ca.index] = cl;
+      fc_in[way] = cb;
     end
   endtask
 
@@ -101,20 +117,15 @@ module cache
     if (!reset) begin
       if (mem_read ^ mem_write) begin
         // Send a data read request
-//        read(instruction_address, 1, ir, miss);
+//        read(instruction_address, data_way, ir;
       end 
       if (instruction_read) begin// && !busy_register) begin
         logic [`DATA_SIZE - 1 : 0] ir;
         // Check cache
-        read(instruction_address, 0, ir);
+        read(instruction_address, instruction_way, ir);
         instruction_response = ir[`INSTRUCTION_SIZE - 1 : 0];
 
      end
-      if (bus_reqack) begin
-          bus_reqcyc = 0;
-          bus_req = 0;
-          // Once memory acknowledges our request
-      end
     end
   end
 
@@ -122,21 +133,31 @@ module cache
   logic waiting_register;
   // Make Reset Signals when request returns
   always_ff @(posedge clk) begin
+    // ** Should reach here first
     // If Instruction is not in cache
     if (miss & !waiting) begin
       // Send an instruction read request
-      bus_req = instruction_address;
-      bus_reqtag = `MEM_READ;
-      bus_reqcyc = 1;
+      bus_req <= instruction_address;
+      bus_reqtag <= `MEM_READ;
+      bus_reqcyc <= 1;
       busy = 1;
-      waiting = 1;
+      waiting <= 1;
     end
 
+    // ** Should reach here second
+    // Reset values when request is acknowledged
+    if (bus_reqack) begin
+      bus_reqcyc <= 0;
+      bus_req <= 0;
+      bus_reqtag <= 0;
+      // Once memory acknowledges our request
+    end
 
     bus_respack <= 0;
     response_received <= 0;
-//    busy_register <= data_busy | instruction_busy;
 
+    // ** Should reach here second also
+    // Acknowledge that response was received
     if (bus_respcyc) begin
       response_register <= bus_resp;
       bus_respack <= 1;
@@ -144,7 +165,7 @@ module cache
     end
 
     if (bus_resptag == `MEM_READ) begin
-      waiting = 0;
+      waiting <= 0;
     end
   end
 
