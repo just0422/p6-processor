@@ -15,22 +15,21 @@
 `define WAYS                      4
 `define WAYS_B     $bits(`WAYS - 1)
 
-
+typedef logic [`TAG_SIZE - 1 : 0] cache_tag; 
+typedef logic [`INDEX_SIZE_B - 1 : 0] cache_index;
+typedef logic [`OFFSET_SIZE_B - 1 : 0] cache_offset;
 // CACHE CONSTANTS
 typedef struct packed {
-  logic [`TAG_SIZE - 1 : 0] tag;
-  logic [`INDEX_SIZE_B - 1 : 0] index;
-  logic [`OFFSET_SIZE_B - 1 : 0] offset;
+  cache_tag tag;
+  cache_index index;
+  cache_offset offset;
 } cache_address;
-
-
 
 // Cache Block
 typedef logic [`DATA_SIZE - 1 : 0] cache_cell; // One Cell of Size 64
 typedef struct packed {
   logic valid;
   logic dirty;
-  logic [`WAYS_B - 1 : 0] lru;
   logic [`TAG_SIZE - 1 : 0] tag;
   cache_cell [`OFFSET_SIZE_B - 1 : 0] cache_cells; // 64 byte offset (8 words)
 } cache_line;

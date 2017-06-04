@@ -82,13 +82,18 @@ module cache
     end
   endtask
 
-/*  task evict;
-    input [`ADDRESS_SIZE - 1 : 0] address;
-    input instruction_or_data;
+  task evict;
+    input cache_tag tag;
+    input cache_index index;
+    input cache_cell cells;
     begin
+      // send to memory
+      logic [`ADDRESS_SIZE - 1 : 0] address;
+
+      address = { tag, index, {`OFFSET_SIZE_B{1'b0}} };
     end
   endtask
-*/
+
   task insert;
     input [`ADDRESS_SIZE - 1 : 0] address;
     input [`DATA_SIZE *  - 1 : 0] value;
@@ -100,11 +105,15 @@ module cache
 
       cache_block cb = fc_in[way];  // Get block 'dcb' at way[i]
       cache_line cl = cb[ca.index]; // Get cache line 'dcl' dcb[index]
-      if (cl.lru >= `WAYS - 1) begin
-        cl = 0;
-        cl.valid = 1;
-        cl.cache_cells = value;
+
+      if (cl.dirty) begin
+        evict(cl.tag, ca.index, cl.cache_cells);
+        
       end
+
+      cl = 0;
+      cl.valid = 1;
+      cl.cache_cells = value;
 
       cb[ca.index] = cl;
       fc_in[way] = cb;
