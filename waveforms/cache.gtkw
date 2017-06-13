@@ -1,0 +1,67 @@
+[*]
+[*] GTKWave Analyzer v3.3.66 (w)1999-2015 BSI
+[*] Tue Jun 13 23:39:17 2017
+[*]
+[dumpfile] "/home/jemaldonado/project/trace.vcd"
+[dumpfile_mtime] "Tue Jun 13 23:38:54 2017"
+[dumpfile_size] 419142
+[savefile] "/home/jemaldonado/project/waveforms/cache.gtkw"
+[timestart] 49101
+[size] 1440 851
+[pos] -1 -1
+*-10.000000 52000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] TOP.
+[treeopen] TOP.top.
+[sst_width] 210
+[signals_width] 329
+[sst_expanded] 1
+[sst_vpaned_height] 385
+@22
+TOP.top.pc[63:0]
+@28
+TOP.top.cache.clk
+@800200
+-Step 1: Check Cache
+@28
+TOP.top.cache.busy
+TOP.top.cache.miss
+TOP.top.cache.waiting
+@1000200
+-Step 1: Check Cache
+@c00200
+-Step 2: Memory Interaction
+@28
+TOP.top.cache.response_received
+@1401200
+-Step 2: Memory Interaction
+@800200
+-Step 3: Build Cache Line
+@28
+TOP.top.cache.ready_to_insert
+@22
+TOP.top.cache.response_cache_line[511:0]
+TOP.top.cache.response_cache_line_register[511:0]
+TOP.top.cache.response_register[63:0]
+@1000200
+-Step 3: Build Cache Line
+@800200
+-Step 4: Insert Into cache
+@22
+TOP.top.cache.instruction_way[72703:0]
+@29
+TOP.top.cache.inserted
+@1000200
+-Step 4: Insert Into cache
+@22
+TOP.top.cache.bus_req[63:0]
+@28
+TOP.top.cache.bus_reqcyc
+@22
+TOP.top.cache.bus_resp[63:0]
+TOP.top.cache.instruction_address[63:0]
+TOP.top.cache.instruction_response[31:0]
+TOP.top.cache.current_request_offset[3:0]
+@28
+TOP.top.cache.response_added
+[pattern_trace] 1
+[pattern_trace] 0

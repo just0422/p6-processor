@@ -46,6 +46,7 @@ module cache
   logic waiting; // Waiting for memory response
   logic miss; // Did we miss in cache??
   
+
   task reset_signals;
     begin
 //      data_busy = 0;
@@ -74,11 +75,12 @@ module cache
         cache_line cl = cb[ca.index]; // Get cache line 'cl' cb[index]
         if (ca.tag == cl.tag && cl.valid) begin // IF address tag and cache set tag are the same
           miss = 0;
-          busy = 0; // Reset busy once found
           value = cl.cache_cells[ca.offset]; // grab value at offset
     //      fix_lru(i, ca.index, instruction_or_data);
         end 
       end
+
+      busy = miss;
     end
   endtask
 
@@ -101,7 +103,7 @@ module cache
     output full_cache fc_out;
     begin
       cache_address ca = address;
-      int way = $random() % `WAYS;
+      int way = $random % `WAYS;
 
       cache_block cb = fc_in[way];  // Get block 'dcb' at way[i]
       cache_line cl = cb[ca.index]; // Get cache line 'dcl' dcb[index]
@@ -116,6 +118,9 @@ module cache
 
       cb[ca.index] = cl;
       fc_in[way] = cb;
+      $display("cache address  -  %x", ca);
+      $display("way            -  %x", way);
+      $display("cache line     -  %x", cl);
 
       current_request_offset = 0;
       response_cache_line = 0;
@@ -143,19 +148,17 @@ module cache
   /******************* STEP 2a **************************/
   // Send request to memory
   logic response_received;
-  logic waiting_register;
   logic [`ADDRESS_SIZE - 1 : 0] instruction_address_register;
   logic [$clog2(`OFFSET_SIZE_B - 1) : 0] current_request_offset;
   always_ff @(posedge clk) begin : make_request
     instruction_address_register = instruction_address;
     // ** Should reach here first
     // If Instruction is not in cache
-    if (miss & !waiting) begin
+    if (miss && !waiting) begin
       // Send an instruction read request
       bus_req <= instruction_address & 64'hfffffffffffffff8 + (current_request_offset * `OFFSET_SIZE_B);
       bus_reqtag <= `MEM_READ;
       bus_reqcyc <= 1;
-      busy = 1;
       waiting <= 1;
     end
   end
@@ -204,7 +207,6 @@ module cache
   cache_cell [`OFFSET_SIZE_B - 1 : 0] response_cache_line;
   logic response_added;
   always_comb begin : build_cache_line
-    logic [`BUS_DATA_WIDTH - 1 : 0] response = response_register;
     shortint offset = `OFFSET_SIZE_B, tag = `TAG_SIZE_B, index = `INDEX_SIZE_B;
    
     response_added = 0;
@@ -232,7 +234,7 @@ module cache
 
 
   /******************* STEP 4 **************************/
-  // Insert into cache and return to processor
+  // Insert into cache
   logic inserted;
   always_comb begin
     logic [`ADDRESS_SIZE - 1 : 0] address = instruction_address_register & 64'hfffffffffffffff8;

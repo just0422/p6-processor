@@ -40,9 +40,10 @@ module top
     if (reset) begin
       pc <= entry;
     end else begin
-      $display("Hello World!  @ %x - %x", pc, instruction_response);
-      if (!i_busy)
+      if (!i_busy) begin
+        $display("Hello World!  @ %x - %x", pc, instruction_response);
         pc <= pc + 4;
+      end
 //      $finish;
     end
 
