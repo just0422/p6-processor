@@ -40,7 +40,9 @@ module top
     if (reset) begin
       pc <= entry;
     end else begin
-      $display("Hello World!  @ %x", pc);
+      $display("Hello World!  @ %x - %x", pc, instruction_response);
+      if (!i_busy)
+        pc <= pc + 4;
 //      $finish;
     end
 
@@ -51,7 +53,7 @@ module top
 
 /************************** INSTRUCTION FETCH ******************************/
   logic [`INSTRUCTION_SIZE-1:0] instruction_response;
-  logic [`INSTRUCTION_SIZE-1:0] instruction_address;
+  logic [`ADDRESS_SIZE - 1:0] instruction_address;
   logic instruction_read;
   logic busy;
   
@@ -70,10 +72,10 @@ module top
     .bus_resptag(bus_resptag),        .bus_req(bus_req),
     .bus_resp(bus_resp),              .bus_reqtag(bus_reqtag), 
          
-    .busy(busy),
+    .busy(i_busy),
     
     .instruction_read(instruction_read),
-    .instruction_address(instruction_address),
+    .instruction_address(pc),
     .instruction_response(instruction_response),
 
     .mem_read(0),

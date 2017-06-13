@@ -96,7 +96,7 @@ module cache
 
   task insert;
     input [`ADDRESS_SIZE - 1 : 0] address;
-    input [`DATA_SIZE *  - 1 : 0] value;
+    input [`DATA_SIZE * `OFFSET_SIZE - 1 : 0] value;
     input full_cache fc_in;
     output full_cache fc_out;
     begin
@@ -108,7 +108,6 @@ module cache
 
       if (cl.dirty) begin
         evict(cl.tag, ca.index, cl.cache_cells);
-        
       end
 
       cl = 0;
@@ -117,11 +116,17 @@ module cache
 
       cb[ca.index] = cl;
       fc_in[way] = cb;
+
+      current_request_offset = 0;
+      response_cache_line = 0;
+
+      fc_out = fc_in;
     end
   endtask
 
-
-  // Make request to Memory
+  /******************* STEP 1 *************************/
+  // Find in cache or prep for emory request
+  logic [`DATA_SIZE - 1 : 0] instruction_response_register;
   always_comb begin : cache_or_mem
     if (!reset) begin
       if (mem_read ^ mem_write) begin
@@ -129,39 +134,46 @@ module cache
 //        read(instruction_address, data_way, ir;
       end 
       if (instruction_read) begin// && !busy_register) begin
-        logic [`DATA_SIZE - 1 : 0] ir;
         // Check cache
-        read(instruction_address, instruction_way, ir);
-        instruction_response = ir[`INSTRUCTION_SIZE - 1 : 0];
-
+        read(instruction_address, instruction_way, instruction_response_register);
      end
     end
   end
 
+  /******************* STEP 2a **************************/
+  // Send request to memory
   logic response_received;
   logic waiting_register;
-  // Make Reset Signals when request returns
-  always_ff @(posedge clk) begin
+  logic [`ADDRESS_SIZE - 1 : 0] instruction_address_register;
+  logic [$clog2(`OFFSET_SIZE_B - 1) : 0] current_request_offset;
+  always_ff @(posedge clk) begin : make_request
+    instruction_address_register = instruction_address;
     // ** Should reach here first
     // If Instruction is not in cache
     if (miss & !waiting) begin
       // Send an instruction read request
-      bus_req <= instruction_address;
+      bus_req <= instruction_address & 64'hfffffffffffffff8 + (current_request_offset * `OFFSET_SIZE_B);
       bus_reqtag <= `MEM_READ;
       bus_reqcyc <= 1;
       busy = 1;
       waiting <= 1;
     end
+  end
 
-    // ** Should reach here second
-    // Reset values when request is acknowledged
+  /******************* STEP 2b **************************/
+  // Reset values when request is acknowledged
+  always_ff @(posedge clk) begin : request_acknowledged
     if (bus_reqack) begin
       bus_reqcyc <= 0;
       bus_req <= 0;
       bus_reqtag <= 0;
       // Once memory acknowledges our request
     end
+  end
 
+  /******************* STEP 2c **************************/
+  // Receive response
+  always_ff @(posedge clk) begin : receive_response
     bus_respack <= 0;
     response_received <= 0;
 
@@ -178,8 +190,62 @@ module cache
     end
   end
 
-  // Insert into cache and return to processor
-  always_comb begin
+  /******************* STEP 5 **************************/
+  // Return to processor
+  always_ff @(posedge clk) begin : return_to_processor
+    // ** Should reach here only when request is in cache
+    if (!miss && !busy) begin
+      instruction_response = instruction_response_register[`INSTRUCTION_SIZE - 1 : 0];
+    end
+  end
+
+  /******************* STEP 3 **************************/
+  // Build cache line
+  cache_cell [`OFFSET_SIZE_B - 1 : 0] response_cache_line;
+  logic response_added;
+  always_comb begin : build_cache_line
     logic [`BUS_DATA_WIDTH - 1 : 0] response = response_register;
+    shortint offset = `OFFSET_SIZE_B, tag = `TAG_SIZE_B, index = `INDEX_SIZE_B;
+   
+    response_added = 0;
+    if (response_received) begin
+      response_cache_line[current_request_offset] = response_register;
+      response_added = 1;
+    end
+  end
+
+  logic ready_to_insert;
+  cache_cell [`OFFSET_SIZE_B - 1 : 0] response_cache_line_register;
+  cache_block [`WAYS - 1 : 0] instruction_way_insert_register; // 32 KB Instruction Cache
+  always_ff @(posedge clk) begin
+    if (response_added)
+      current_request_offset += 1;
+
+    ready_to_insert <= 0;
+    response_cache_line_register <= 0;
+    if (current_request_offset >= `OFFSET_SIZE_B) begin
+      ready_to_insert <= 1;
+      instruction_way_insert_register = 0;
+      response_cache_line_register <= response_cache_line;
+    end
+  end
+
+
+  /******************* STEP 4 **************************/
+  // Insert into cache and return to processor
+  logic inserted;
+  always_comb begin
+    logic [`ADDRESS_SIZE - 1 : 0] address = instruction_address_register & 64'hfffffffffffffff8;
+    logic [`DATA_SIZE * `OFFSET_SIZE_B - 1 : 0] value = response_cache_line_register;
+    inserted = 0;
+    if (ready_to_insert && instruction_read) begin
+      insert(address, value, instruction_way, instruction_way_insert_register);
+      inserted = 1;
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    if (inserted)
+      instruction_way = instruction_way_insert_register;
   end
 endmodule
