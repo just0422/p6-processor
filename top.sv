@@ -40,10 +40,6 @@ module top
     if (reset) begin
       pc <= entry;
     end else begin
-      if (!i_busy) begin
-        $display("Hello World!  @ %x - %x", pc, instruction_response);
-        pc <= pc + 4;
-      end
 //      $finish;
     end
 
@@ -84,9 +80,11 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    if (!busy) begin
-    //  pc <= pc + 4;
+    if (!i_busy && instruction_response) begin
+      $display("Hello World!  @ %x - %x", pc, instruction_response);
+      pc <= pc + 4;
     end
+    //  pc <= pc + 4;
   end
 
   initial begin

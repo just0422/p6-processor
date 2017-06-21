@@ -1,12 +1,12 @@
 [*]
 [*] GTKWave Analyzer v3.3.66 (w)1999-2015 BSI
-[*] Tue Jun 13 23:39:17 2017
+[*] Wed Jun 14 02:01:27 2017
 [*]
 [dumpfile] "/home/jemaldonado/project/trace.vcd"
-[dumpfile_mtime] "Tue Jun 13 23:38:54 2017"
-[dumpfile_size] 419142
+[dumpfile_mtime] "Wed Jun 14 00:24:41 2017"
+[dumpfile_size] 417509
 [savefile] "/home/jemaldonado/project/waveforms/cache.gtkw"
-[timestart] 49101
+[timestart] 50847
 [size] 1440 851
 [pos] -1 -1
 *-10.000000 52000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
@@ -63,5 +63,7 @@ TOP.top.cache.instruction_response[31:0]
 TOP.top.cache.current_request_offset[3:0]
 @28
 TOP.top.cache.response_added
+TOP.top.cache.bus_reqack
+TOP.top.cache.response_received
 [pattern_trace] 1
 [pattern_trace] 0

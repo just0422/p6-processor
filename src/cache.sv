@@ -45,6 +45,7 @@ module cache
   logic [`BUS_DATA_WIDTH - 1 : 0] response_register;
   logic waiting; // Waiting for memory response
   logic miss; // Did we miss in cache??
+  logic inserting; // Are we currently inserting into the cache
   
 
   task reset_signals;
@@ -66,7 +67,11 @@ module cache
     begin
       cache_address ca = address;
 
-      miss = 1;
+      busy = 1;
+      if (!waiting && !inserting) 
+        miss = 1; // Gotta find a way to get 'miss' or 'waiting' to flip before a new req is sent
+      else
+        miss = 0;
       value = 0;
 
       // No break because no block should ever have the same tag
@@ -74,13 +79,13 @@ module cache
         cache_block cb = fc_in[i];  // Get block 'cb' at way[i]
         cache_line cl = cb[ca.index]; // Get cache line 'cl' cb[index]
         if (ca.tag == cl.tag && cl.valid) begin // IF address tag and cache set tag are the same
-          miss = 0;
+//          miss = 0;
+          busy = 0;
           value = cl.cache_cells[ca.offset]; // grab value at offset
     //      fix_lru(i, ca.index, instruction_or_data);
         end 
       end
 
-      busy = miss;
     end
   endtask
 
@@ -154,7 +159,7 @@ module cache
     instruction_address_register = instruction_address;
     // ** Should reach here first
     // If Instruction is not in cache
-    if (miss && !waiting) begin
+    if (miss) begin
       // Send an instruction read request
       bus_req <= instruction_address & 64'hfffffffffffffff8 + (current_request_offset * `OFFSET_SIZE_B);
       bus_reqtag <= `MEM_READ;
@@ -190,15 +195,21 @@ module cache
 
     if (bus_resptag == `MEM_READ) begin
       waiting <= 0;
+      inserting <= 1;
     end
   end
 
   /******************* STEP 5 **************************/
   // Return to processor
   always_ff @(posedge clk) begin : return_to_processor
+    instruction_response = 0;
     // ** Should reach here only when request is in cache
     if (!miss && !busy) begin
-      instruction_response = instruction_response_register[`INSTRUCTION_SIZE - 1 : 0];
+      if (instruction_address & 4 > 0)
+        instruction_response = instruction_response_register[`INSTRUCTION_SIZE - 1 : 0];
+      else
+        instruction_response = instruction_response_register[`DATA_SIZE - 1 : `INSTRUCTION_SIZE];
+
     end
   end
 
@@ -210,7 +221,7 @@ module cache
     shortint offset = `OFFSET_SIZE_B, tag = `TAG_SIZE_B, index = `INDEX_SIZE_B;
    
     response_added = 0;
-    if (response_received) begin
+    if (inserting) begin
       response_cache_line[current_request_offset] = response_register;
       response_added = 1;
     end
@@ -247,7 +258,9 @@ module cache
   end
 
   always_ff @(posedge clk) begin
-    if (inserted)
+    if (inserted) begin
       instruction_way = instruction_way_insert_register;
+      inserting <= 0;
+    end
   end
 endmodule
