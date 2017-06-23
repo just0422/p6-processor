@@ -3,6 +3,7 @@
 
 `include "src/branch_prediction.sv"
 `include "src/cache.sv"
+`include "src/decoder.sv"
 
 module top
 #(
@@ -34,7 +35,7 @@ module top
   int x = 0;
   always_ff @(posedge clk) begin
     x++;
-    if (x > 400)
+    if (x > 200)
       $finish;
   end
 
@@ -100,10 +101,36 @@ module top
     if (!i_busy && instruction_response) begin
       $display("%d - Hello World!  @ %x - %x", x, pc, instruction_response);
       pc <= next_pc;
+      fet_dec_reg.instruction = instruction_response;
     end
   end
-
+  
+  fetch_decode_register fet_dec_reg;
   /************************ INSTRUCTION DECODE ************************/
+  logic [`NUMBER_OF_REGISTERS_B - 1 : 0] rs1;
+  logic [`NUMBER_OF_REGISTERS_B - 1 : 0] rs2;
+  logic [`NUMBER_OF_REGISTERS_B - 1 : 0] rd;
+  logic [`IMMEDIATE_SIZE - 1 : 0] imm;
+  logic [`CONTROL_BITS_SIZE - 1 : 0] ctrl_bits;
+
+  decoder decode(
+    // Input
+    .instruction(fet_dec_reg.instruction),
+
+    // Output
+    .register_source_1(rs1),
+    .register_source_2(rs2),
+    .register_destination(rd),
+    .immediate(imm),
+    .ctrl_bits(ctrl_bits)
+  );
+
+  always_ff @(posedge clk) begin
+    //$display("%d\t%d\t%d\t%x\t%x", rs1, rs2, rd, imm, ctrl_bits);
+  end
+
+  /************************ REGISTER FETCH ******************************/
+
 
   initial begin
     $display("Initializing top, entry point = 0x%x", entry);

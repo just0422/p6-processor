@@ -45,7 +45,71 @@ typedef cache_line[`INDEXES_PER_WAY - 1 : 0] cache_block;
 typedef cache_block [`WAYS - 1 : 0] full_cache;
 
 
-
+// Register between fetch and decode
 typedef struct packed {
   logic [`INSTRUCTION_SIZE - 1 : 0] instruction;
 } fetch_decode_register;
+
+
+
+
+
+
+
+`define IMMEDIATE_SIZE              64
+`define NUMBER_OF_REGISTERS         32
+`define NUMBER_OF_REGISTERS_B       $clog2(`NUMBER_OF_REGISTERS - 1)
+
+// Data Structure Lengths
+`define CONTROL_BITS_SIZE           $bits(control_bits)
+
+
+// Memory Instruction Type
+typedef enum logic[3:0] { 
+        LB, LBU, LH, LHU, LW, LWU, LD,
+        SB, SH, SW, SD 
+      } memory_instruction_type;
+
+// ALU operation
+typedef enum logic [5:0] {
+  // Normal ALU
+  ADD, SUB, AND, OR, XOR,
+  SLT, SRL, SRA, SLL,
+  ADDW, SUBW, SLTW, SRAW, SRLW, SLLW,
+  BEQ, BNE, BGE, BLT, BGEU, BLTU,
+  //M extention
+  MUL, MULH, MULSU, MULHU, MULHSU,
+  MULW, DIV, DIVU, REM,
+  REMU, DIVW, DIVUW,
+  REMW, REMUW
+} alu_operation;
+
+typedef struct packed {
+  logic alusrc;                       // ALU source (rs2 or imm)
+  logic apc;                          // APC
+  logic cjump;                        // Conditional Jump
+  logic ecall;                        // e-call
+  logic memtoreg;                     // Memory To Register
+  logic memwr;                        // Memory Write
+  logic regwr;                        // Register Write
+  logic ucjump;                       // Unconditional Jump
+  logic unsupported;                  // *Unsuppored Instruction
+  logic usign;                        // Unsigned
+  alu_operation aluop;                // ALU Operation
+  memory_instruction_type memtype;    // Memory Instruction Type
+} control_bits;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
