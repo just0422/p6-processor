@@ -1,5 +1,7 @@
 `include "Sysbus.defs"
 `include "src/consts.sv"
+
+`include "src/branch_prediction.sv"
 `include "src/cache.sv"
 
 module top
@@ -27,7 +29,7 @@ module top
   input  [BUS_TAG_WIDTH-1:0] bus_resptag
 );
 
-  logic [63:0] pc;
+  logic [63:0] pc, next_pc;
 
   int x = 0;
   always_ff @(posedge clk) begin
@@ -79,12 +81,26 @@ module top
     .mem_write(0)
   );
 
+  // Branch Prediction
+  branch_predictor branch_predictor (
+    // Housekeeping
+    .clk(clk), .reset(reset),
+
+    // Inputs
+    .pc(pc),
+    .instruction(instruction_response),
+
+    // Outputs
+    .next_pc(next_pc)
+  );
+  
+
+  // Assign next PC value 
   always_ff @(posedge clk) begin
     if (!i_busy && instruction_response) begin
       $display("%d - Hello World!  @ %x - %x", x, pc, instruction_response);
-      pc <= pc + 4;
+      pc <= next_pc;
     end
-    //  pc <= pc + 4;
   end
 
   /************************ INSTRUCTION DECODE ************************/

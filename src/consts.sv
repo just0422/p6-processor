@@ -43,3 +43,9 @@ typedef struct packed {
 } cache_line;
 typedef cache_line[`INDEXES_PER_WAY - 1 : 0] cache_block;
 typedef cache_block [`WAYS - 1 : 0] full_cache;
+
+
+
+typedef struct packed {
+  logic [`INSTRUCTION_SIZE - 1 : 0] instruction;
+} fetch_decode_register;

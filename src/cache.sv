@@ -119,6 +119,11 @@ module cache
       current_request_offset = 0;
       response_cache_line = 0;
 
+      $display("cache address  -  %x", ca);
+      $display("%b - %b - %b", ca.tag, ca.index, ca.offset);
+      $display("way            -  %x", way);
+      $display("cache line     -  %x", cl);
+
       fc_out = fc_in;
     end
   endtask
