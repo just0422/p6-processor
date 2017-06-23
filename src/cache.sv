@@ -74,7 +74,7 @@ module cache
           value = instruction_cells[ca.offset >> 2]; // grab value at offset
       //    $display("%d - %x", ca.index, cl);
       //    $display("%b", ca);
-          $display("%b - %b", ca.index, ca.offset);
+      //    $display("%b - %b", ca.index, ca.offset);
         end 
       end
 
