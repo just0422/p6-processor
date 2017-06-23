@@ -81,11 +81,13 @@ module top
 
   always_ff @(posedge clk) begin
     if (!i_busy && instruction_response) begin
-      $display("Hello World!  @ %x - %x", pc, instruction_response);
+      $display("%d - Hello World!  @ %x - %x", x, pc, instruction_response);
       pc <= pc + 4;
     end
     //  pc <= pc + 4;
   end
+
+  /************************ INSTRUCTION DECODE ************************/
 
   initial begin
     $display("Initializing top, entry point = 0x%x", entry);
