@@ -127,14 +127,14 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    dec_regs_reg = {rs1, rs2, rd, imm, ctrl_bits};
+    dec_regs_reg = {fet_dec_reg.instruction, rs1, rs2, rd, imm, ctrl_bits};
   end
   
   decode_registers_register dec_regs_reg;
   /************************ REGISTER FETCH ******************************/
-  logic [`DATA_SIZE-1:0] rs1_value;
-  logic [`DATA_SIZE-1:0] rs2_value; 
-  logic [`DATA_SIZE-1:0] imm_value; 
+  logic [`DATA_SIZE - 1 : 0] rs1_value;
+  logic [`DATA_SIZE - 1 : 0] rs2_value;
+  logic [`DATA_SIZE - 1 : 0] imm_value;
 
   register_file register_file (
     // House keeping
@@ -146,20 +146,69 @@ module top
     .rs1_out(rs1_value),        .rs2_out(rs2_value)
 
 
-
+    // TODO
     // DONT FORGET ABOUT THE STACKPTR WHEN WRITING 
   );
 
-  // Keep the immediate passing through
-  always_comb
-    imm_value = dec_regs_reg.imm;
-
   always_ff @(posedge clk) begin
+    regs_dis_reg = { dec_regs_reg.instruction, dec_regs_reg.rs1, dec_regs_reg.rs2, dec_regs_reg.rd, 
+                     rs1_value, rs2_value, dec_regs_reg.imm, dec_regs_reg.ctrl_bits };
   end
 
+  registers_dispatch_register regs_dis_reg;
   /*********************** INSTRUCTION DISPATCH ***********************/
+  map_table_entry map_table [`NUMBER_OF_REGISTERS - 1 : 0];   // MAP TABLE
+  rob_entry rob [`ROB_SIZE - 1 : 0];                          // ROB
+  lsq_entry lsq [`LSQ_SIZE - 1 : 0];                          // LSQ
+  rs_entry res_stations[`RS_SIZE - 1 : 0];                    // RESERVATION STATIONS
 
+  // Holds values to be inserted into data structures
+  map_table_entry mte;
+  rs_entry        rse
+  rob_entry       re;
+  lsq_entry       le;
+
+  allocator allocate(
+    // Housekeeping
+    .clk(clk), .reset(reset)
   
+    // Need to read from the hardware structures
+    .rob(rob),
+    .map_table(map_table),
+    .res_stations(res_stations),
+    .regs_dis_reg(regs_dis_reg)
+
+    // TODO: Need to include the CDB
+
+    // Created rows for each data structure
+    .mte(mte),
+    .re(re),
+    .rse(rse)
+    .le(le)
+    .bypass_rs(bypas_rs)
+  );
+
+  always_ff @(posedge clk) begin
+    // add to the rob
+    rob[rob_tail - 1] <= re;
+
+    for(int i = 0; i < `RS_SIZE; i++) begin
+      if(!res_stations[i].busy && !bypass_rs) begin
+        rse.tag <= rob_tail;
+        res_stations[i] <= rse;
+      end
+    end
+
+    if (mte) begin
+      mte.tag <= rob_tail;
+      map_table[re.register_destination] <= mte;
+    end
+
+    // TODO: Add to the LSQ.....
+
+    // TODO: Perfect ROB/LSQ head/tail logic
+    rob_tail <= rob_tail + 1;
+  end
 
   initial begin
     $display("Initializing top, entry point = 0x%x", entry);
