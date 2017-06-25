@@ -1,22 +1,31 @@
-`define ADDRESS_SIZE      64
-`define BLOCK_SIZE        64
-`define BUS_DATA_WIDTH    64
-`define BUS_TAG_WIDTH     13
-`define DATA_SIZE         64
-`define DIRTY             1
-`define INDEX_SIZE        32 
-`define INDEX_SIZE_B      $clog2(`INDEX_SIZE - 1)
-`define INDEXES_PER_WAY   32
-`define INSTRUCTION_SIZE  32
-`define MEM_READ          0'h1100
-`define OFFSET_SIZE       64 
-`define OFFSET_SIZE_B     $clog2(`OFFSET_SIZE - 1)
-`define CELLS_NEEDED      8
-`define CELLS_NEEDED_B    $clog2(`CELLS_NEEDED - 1)
-`define TAG_SIZE_B        64 - (`OFFSET_SIZE_B + `INDEX_SIZE_B)
-`define VALID             1
-`define WAYS              4
-`define WAYS_B            $clog2(`WAYS - 1)
+`define ADDRESS_SIZE                64
+`define BLOCK_SIZE                  64
+`define BUS_DATA_WIDTH              64
+`define BUS_TAG_WIDTH               13
+`define DATA_SIZE                   64
+`define DIRTY                       1
+`define IMMEDIATE_SIZE              64
+`define INDEX_SIZE                  32 
+`define INDEX_SIZE_B                $clog2(`INDEX_SIZE - 1)
+`define INDEXES_PER_WAY             32
+`define INSTRUCTION_SIZE            32
+`define MEM_READ                    0'h1100
+`define NUMBER_OF_REGISTERS         32
+`define NUMBER_OF_REGISTERS_B       $clog2(`NUMBER_OF_REGISTERS - 1)
+`define OFFSET_SIZE                 64 
+`define OFFSET_SIZE_B               $clog2(`OFFSET_SIZE - 1)
+`define CELLS_NEEDED                8
+`define CELLS_NEEDED_B              $clog2(`CELLS_NEEDED - 1)
+`define TAG_SIZE_B                  64 - (`OFFSET_SIZE_B + `INDEX_SIZE_B)
+`define VALID                       1
+`define WAYS                        4
+`define WAYS_B                      $clog2(`WAYS - 1)
+
+
+// Data Structure Lengths
+`define CONTROL_BITS_SIZE           $bits(control_bits)
+
+
 
 // OFFSET bits will alawys be a multiple of 4
 // TAG SIZE + INDEX + OFFSET
@@ -45,23 +54,10 @@ typedef cache_line[`INDEXES_PER_WAY - 1 : 0] cache_block;
 typedef cache_block [`WAYS - 1 : 0] full_cache;
 
 
-// Register between fetch and decode
-typedef struct packed {
-  logic [`INSTRUCTION_SIZE - 1 : 0] instruction;
-} fetch_decode_register;
 
 
 
 
-
-
-
-`define IMMEDIATE_SIZE              64
-`define NUMBER_OF_REGISTERS         32
-`define NUMBER_OF_REGISTERS_B       $clog2(`NUMBER_OF_REGISTERS - 1)
-
-// Data Structure Lengths
-`define CONTROL_BITS_SIZE           $bits(control_bits)
 
 
 // Memory Instruction Type
@@ -107,6 +103,22 @@ typedef struct packed {
 
 
 
+/////////////////////////////////////////////////////////////////////////////////
+/********************************** REGISTERS **********************************/
+/////////////////////////////////////////////////////////////////////////////////
+// Register between fetch and decode
+typedef struct packed {
+  logic [`INSTRUCTION_SIZE - 1 : 0] instruction;
+} fetch_decode_register;
+
+// Register between decode and register fetch
+typedef struct packed {
+	logic [`NUMBER_OF_REGISTERS_B - 1 : 0] rs1;
+  logic [`NUMBER_OF_REGISTERS_B - 1 : 0] rs2;
+  logic [`NUMBER_OF_REGISTERS_B - 1 : 0] rd;
+	logic [`IMMEDIATE_SIZE - 1 : 0] imm;
+	logic [`CONTROL_BITS_SIZE - 1 : 0] ctrl_bits;
+} decode_registers_register;
 
 
 

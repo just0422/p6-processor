@@ -4,6 +4,7 @@
 `include "src/branch_prediction.sv"
 `include "src/cache.sv"
 `include "src/decoder.sv"
+`include "src/register_file.sv"
 
 module top
 #(
@@ -126,11 +127,39 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    //$display("%d\t%d\t%d\t%x\t%x", rs1, rs2, rd, imm, ctrl_bits);
+    dec_regs_reg = {rs1, rs2, rd, imm, ctrl_bits};
+  end
+  
+  decode_registers_register dec_regs_reg;
+  /************************ REGISTER FETCH ******************************/
+  logic [`DATA_SIZE-1:0] rs1_value;
+  logic [`DATA_SIZE-1:0] rs2_value; 
+  logic [`DATA_SIZE-1:0] imm_value; 
+
+  register_file register_file (
+    // House keeping
+    .clk(clk), .reset(reset),
+
+    // Register Read Inputs
+    .rs1_in(dec_regs_reg.rs1),  .rs2_in(dec_regs_reg.rs2),
+    // Register Read Outputs
+    .rs1_out(rs1_value),        .rs2_out(rs2_value)
+
+
+
+    // DONT FORGET ABOUT THE STACKPTR WHEN WRITING 
+  );
+
+  // Keep the immediate passing through
+  always_comb
+    imm_value = dec_regs_reg.imm;
+
+  always_ff @(posedge clk) begin
   end
 
-  /************************ REGISTER FETCH ******************************/
+  /*********************** INSTRUCTION DISPATCH ***********************/
 
+  
 
   initial begin
     $display("Initializing top, entry point = 0x%x", entry);
