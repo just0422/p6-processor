@@ -4,7 +4,7 @@ module decoder
   output [`NUMBER_OF_REGISTERS - 1: 0] register_source_1,
   output [`NUMBER_OF_REGISTERS - 1: 0] register_source_2,
   output [`NUMBER_OF_REGISTERS - 1: 0] register_destination,
-  output [`IMMEDIATE_SIZE - 1 : 0] immediate,
+  output [`IMMEDIATE_SIZE - 1 : 0] imm,
   output [`CONTROL_BITS_SIZE - 1 : 0] ctrl_bits
 );
 
@@ -29,7 +29,7 @@ module decoder
     register_source_1 = instruction[19:15];
     register_source_2 = instruction[24:20];
     register_destination = instruction[11:7];
-    immediate = 0;
+    imm = 0;
     //Calculated
     case(op)
       7'b0110111: begin //LUI
@@ -37,30 +37,30 @@ module decoder
                     ctrl.alusrc = 1;
                     ctrl.apc = 1;
                     ctrl.aluop = ADD;
-                    immediate = imm_u;
+                    imm = imm_u;
                   end
       7'b0010111: begin //AUIPC
                     ctrl.regwr = 1;
                     ctrl.alusrc = 1;
                     ctrl.apc = 1;
                     ctrl.aluop = ADD;
-                    immediate = imm_u;
+                    imm = imm_u;
                   end
       7'b1101111: begin //JAL
                     ctrl.regwr = 1;
                     ctrl.ucjump = 1;
                     ctrl.aluop = ADD;
-                    immediate = 0;
+                    imm = 0;
                   end
       7'b1100111: begin //JALR
                     ctrl.regwr = 1;
                     ctrl.ucjump = 1;
                     ctrl.alusrc = 1;
                     ctrl.aluop = ADD;
-                    immediate = 0;
+                    imm = 0;
                   end
       7'b1100011: begin //BRANCH
-                    immediate = imm_b;
+                    imm = imm_b;
                     ctrl.cjump = 1;
                     case (funct3)
                       3'b000: ctrl.aluop = BEQ;
@@ -76,42 +76,42 @@ module decoder
                     ctrl.regwr = 1;
                     ctrl.memtoreg = 1;
                     ctrl.alusrc = 1;
-                    immediate = imm_i;
+                    imm = imm_i;
                     case(funct3)
-                      3'b000: ctrl.memtype = LB;
-                      3'b001: ctrl.memtype = LH;
-                      3'b010: ctrl.memtype = LW;
-                      3'b011: ctrl.memtype = LD;
-                      3'b100: begin ctrl.memtype = LBU; ctrl.usign = 1; immediate = uimm_i; end
-                      3'b101: begin ctrl.memtype = LHU; ctrl.usign = 1; immediate = uimm_i; end
-                      3'b110: begin ctrl.memtype = LWU; ctrl.usign = 1; immediate = uimm_i; end
+                      3'b000: ctrl.memory_type = LB;
+                      3'b001: ctrl.memory_type = LH;
+                      3'b010: ctrl.memory_type = LW;
+                      3'b011: ctrl.memory_type = LD;
+                      3'b100: begin ctrl.memory_type = LBU; ctrl.usign = 1; imm = uimm_i; end
+                      3'b101: begin ctrl.memory_type = LHU; ctrl.usign = 1; imm = uimm_i; end
+                      3'b110: begin ctrl.memory_type = LWU; ctrl.usign = 1; imm = uimm_i; end
                     endcase
                   end
       7'b0100011: begin //SB, SH, SW, SD
                     ctrl.memwr = 1;
                     ctrl.alusrc = 1;
-                    immediate = imm_s;
+                    imm = imm_s;
                     case(funct3)
-                      3'b000: ctrl.memtype = SB;
-                      3'b001: ctrl.memtype = SH;
-                      3'b010: ctrl.memtype = SW;
-                      3'b011: ctrl.memtype = SD;
+                      3'b000: ctrl.memory_type = SB;
+                      3'b001: ctrl.memory_type = SH;
+                      3'b010: ctrl.memory_type = SW;
+                      3'b011: ctrl.memory_type = SD;
                     endcase
                   end
       7'b0010011: begin //ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI
                     ctrl.regwr = 1;
                     ctrl.alusrc = 1;
-                    immediate = imm_i;
+                    imm = imm_i;
                     case(funct3)
                       3'b000: ctrl.aluop = ADD;
                       3'b010: ctrl.aluop = SLT;
-                      3'b011: begin ctrl.aluop = SLT; ctrl.usign = 1; immediate = uimm_i; end
+                      3'b011: begin ctrl.aluop = SLT; ctrl.usign = 1; imm = uimm_i; end
                       3'b100: ctrl.aluop = XOR;
                       3'b110: ctrl.aluop = OR;
                       3'b111: ctrl.aluop = AND;
-                      3'b001: begin ctrl.aluop = SLL; immediate = instruction[24:20]; end
+                      3'b001: begin ctrl.aluop = SLL; imm = instruction[24:20]; end
                       3'b101: begin
-                                immediate = instruction[24:20];
+                                imm = instruction[24:20];
                                 ctrl.aluop = (instruction[30]) ? SRA : SRL;
                               end
                     endcase
@@ -119,12 +119,12 @@ module decoder
       7'b0011011: begin //ADDIW, SLLIW, SRLIW, SRAIW
                     ctrl.regwr = 1;
                     ctrl.alusrc = 1;
-                    immediate = imm_i;
+                    imm = imm_i;
                     case(funct3)
                       3'b000: ctrl.aluop = ADDW;
-                      3'b001: begin ctrl.aluop = SLLW; immediate = instruction[24:20]; end
+                      3'b001: begin ctrl.aluop = SLLW; imm = instruction[24:20]; end
                       3'b101: begin
-                                immediate = instruction[24:20];
+                                imm = instruction[24:20];
                                 ctrl.aluop = (instruction[30]) ? SRAW : SRLW;
                               end
                     endcase

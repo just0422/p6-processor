@@ -1,6 +1,7 @@
 `include "Sysbus.defs"
 `include "src/consts.sv"
 
+`include "src/allocator.sv"
 `include "src/branch_prediction.sv"
 `include "src/cache.sv"
 `include "src/decoder.sv"
@@ -102,17 +103,17 @@ module top
     if (!i_busy && instruction_response) begin
       $display("%d - Hello World!  @ %x - %x", x, pc, instruction_response);
       pc <= next_pc;
-      fet_dec_reg.instruction = instruction_response;
+      fet_dec_reg = { instruction_response , pc };
     end
   end
   
   fetch_decode_register fet_dec_reg;
   /************************ INSTRUCTION DECODE ************************/
-  logic [`NUMBER_OF_REGISTERS_B - 1 : 0] rs1;
-  logic [`NUMBER_OF_REGISTERS_B - 1 : 0] rs2;
-  logic [`NUMBER_OF_REGISTERS_B - 1 : 0] rd;
-  logic [`IMMEDIATE_SIZE - 1 : 0] imm;
-  logic [`CONTROL_BITS_SIZE - 1 : 0] ctrl_bits;
+  Register rs1;
+  Register rs2;
+  Register rd;
+  Immediate imm;
+  control_bits ctrl_bits;
 
   decoder decode(
     // Input
@@ -122,12 +123,15 @@ module top
     .register_source_1(rs1),
     .register_source_2(rs2),
     .register_destination(rd),
-    .immediate(imm),
+    .imm(imm),
     .ctrl_bits(ctrl_bits)
   );
 
   always_ff @(posedge clk) begin
-    dec_regs_reg = {fet_dec_reg.instruction, rs1, rs2, rd, imm, ctrl_bits};
+    dec_regs_reg = {fet_dec_reg.instruction,
+                    fet_dec_reg.pc, 
+                    rs1, rs2, rd, imm, 
+                    ctrl_bits};
   end
   
   decode_registers_register dec_regs_reg;
@@ -151,12 +155,16 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    regs_dis_reg = { dec_regs_reg.instruction, dec_regs_reg.rs1, dec_regs_reg.rs2, dec_regs_reg.rd, 
-                     rs1_value, rs2_value, dec_regs_reg.imm, dec_regs_reg.ctrl_bits };
+    regs_dis_reg = { dec_regs_reg.instruction, dec_regs_reg.pc,
+                     dec_regs_reg.rs1, dec_regs_reg.rs2, dec_regs_reg.rd, 
+                     rs1_value, rs2_value, dec_regs_reg.imm,
+                     dec_regs_reg.ctrl_bits };
   end
 
   registers_dispatch_register regs_dis_reg;
   /*********************** INSTRUCTION DISPATCH ***********************/
+  int rob_tail;
+
   map_table_entry map_table [`NUMBER_OF_REGISTERS - 1 : 0];   // MAP TABLE
   rob_entry rob [`ROB_SIZE - 1 : 0];                          // ROB
   lsq_entry lsq [`LSQ_SIZE - 1 : 0];                          // LSQ
@@ -164,28 +172,31 @@ module top
 
   // Holds values to be inserted into data structures
   map_table_entry mte;
-  rs_entry        rse
+  rs_entry        rse;
   rob_entry       re;
   lsq_entry       le;
 
   allocator allocate(
     // Housekeeping
-    .clk(clk), .reset(reset)
+    .clk(clk), .reset(reset),
+
+    // The tag that will be associated with this entry
+    .rob_tail(rob_tail),
   
     // Need to read from the hardware structures
     .rob(rob),
     .map_table(map_table),
     .res_stations(res_stations),
-    .regs_dis_reg(regs_dis_reg)
+    .regs_dis_reg(regs_dis_reg),
 
     // TODO: Need to include the CDB
 
     // Created rows for each data structure
     .mte(mte),
     .re(re),
-    .rse(rse)
-    .le(le)
-    .bypass_rs(bypas_rs)
+    .rse(rse),
+    .le(le),
+    .bypass_rs(bypass_rs)
   );
 
   always_ff @(posedge clk) begin
@@ -194,20 +205,18 @@ module top
 
     for(int i = 0; i < `RS_SIZE; i++) begin
       if(!res_stations[i].busy && !bypass_rs) begin
-        rse.tag <= rob_tail;
         res_stations[i] <= rse;
       end
     end
 
     if (mte) begin
-      mte.tag <= rob_tail;
-      map_table[re.register_destination] <= mte;
+      map_table[re.rd] <= mte;
     end
 
     // TODO: Add to the LSQ.....
 
     // TODO: Perfect ROB/LSQ head/tail logic
-    rob_tail <= rob_tail + 1;
+    rob_tail <= 1;
   end
 
   initial begin

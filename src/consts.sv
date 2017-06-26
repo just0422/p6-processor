@@ -29,7 +29,6 @@
 `define CONTROL_BITS_SIZE           $bits(control_bits)
 
 
-
 // OFFSET bits will alawys be a multiple of 4
 // TAG SIZE + INDEX + OFFSET
 //   53         5       6
@@ -65,9 +64,11 @@ typedef cache_block [`WAYS - 1 : 0] full_cache;
 
 // Memory Instruction Type
 typedef enum logic[3:0] { 
-        LB, LBU, LH, LHU, LW, LWU, LD,
-        SB, SH, SW, SD 
-      } memory_instruction_type;
+  LB, LBU, LH, LHU, LW, LWU, LD,
+  SB, SH, SW, SD 
+} memory_instruction_type;
+
+typedef enum logic { LOAD, STORE } memory_instruction_category;
 
 // ALU operation
 typedef enum logic [5:0] {
@@ -84,18 +85,18 @@ typedef enum logic [5:0] {
 } alu_operation;
 
 typedef struct packed {
-  logic alusrc;                       // ALU source (rs2 or imm)
-  logic apc;                          // Adding PC
-  logic cjump;                        // Conditional Jump
-  logic ecall;                        // e-call
-  logic memtoreg;                     // Memory To Register
-  logic memwr;                        // Memory Write
-  logic regwr;                        // Register Write
-  logic ucjump;                       // Unconditional Jump
-  logic unsupported;                  // *Unsuppored Instruction
-  logic usign;                        // Unsigned
-  alu_operation aluop;                // ALU Operation
-  memory_instruction_type memorytype; // Memory Instruction Type
+  logic alusrc;                        // ALU source (rs2 or imm)
+  logic apc;                           // Adding PC
+  logic cjump;                         // Conditional Jump
+  logic ecall;                         // e-call
+  logic memtoreg;                      // Memory To Register
+  logic memwr;                         // Memory Write
+  logic regwr;                         // Register Write
+  logic ucjump;                        // Unconditional Jump
+  logic unsupported;                   // *Unsuppored Instruction
+  logic usign;                         // Unsigned
+  alu_operation aluop;                 // ALU Operation
+  memory_instruction_type memory_type; // Memory Instruction Type
 } control_bits;
 
 
@@ -104,36 +105,42 @@ typedef struct packed {
 
 
 
-
+typedef logic [`DATA_SIZE - 1 : 0]              MemoryWord;
+typedef logic [`INSTRUCTION_SIZE - 1 : 0]       InstructionWord;
+typedef logic [`NUMBER_OF_REGISTERS_B - 1 : 0]  Register;
+typedef logic [`IMMEDIATE_SIZE - 1 : 0]         Immediate;
 
 /////////////////////////////////////////////////////////////////////////////////
 /********************************** REGISTERS **********************************/
 /////////////////////////////////////////////////////////////////////////////////
 // Register between fetch and decode
 typedef struct packed {
-  logic [`INSTRUCTION_SIZE - 1 : 0] instruction;
+  InstructionWord instruction;
+  MemoryWord pc;
 } fetch_decode_register;
 
 // Register between decode and register fetch
 typedef struct packed {
-  logic [`INSTRUCTION_SIZE - 1 : 0] instruction;
-	logic [`NUMBER_OF_REGISTERS_B - 1 : 0] rs1;
-  logic [`NUMBER_OF_REGISTERS_B - 1 : 0] rs2;
-  logic [`NUMBER_OF_REGISTERS_B - 1 : 0] rd;
-	logic [`IMMEDIATE_SIZE - 1 : 0] imm;
-	logic [`CONTROL_BITS_SIZE - 1 : 0] ctrl_bits;
+  InstructionWord instruction;
+  MemoryWord pc;
+	Register rs1;
+  Register rs2;
+  Register rd;
+	Immediate imm;
+	control_bits ctrl_bits;
 } decode_registers_register;
 
 // Register between register fetch and dipatch
 typedef struct packed {
-  logic [`INSTRUCTION_SIZE - 1 : 0] instruction;
-	logic [`NUMBER_OF_REGISTERS_B - 1 : 0] rs1;
-  logic [`NUMBER_OF_REGISTERS_B - 1 : 0] rs2;
-  logic [`NUMBER_OF_REGISTERS_B - 1 : 0] rd;
-  logic [`DATA_SIZE - 1 : 0] rs1_value;
-  logic [`DATA_SIZE - 1 : 0] rs2_value;
-	logic [`IMMEDIATE_SIZE - 1 : 0] imm;
-	logic [`CONTROL_BITS_SIZE - 1 : 0] ctrl_bits;
+  InstructionWord instruction;
+  MemoryWord pc;
+	Register rs1;
+  Register rs2;
+  Register rd;
+  MemoryWord rs1_value;
+  MemoryWord rs2_value;
+	Immediate imm;
+	control_bits ctrl_bits;
 } registers_dispatch_register;
 
 
@@ -147,10 +154,10 @@ typedef struct packed {
 } map_table_entry;
 
 typedef struct packed {
-  logic ready
+  logic ready;
   int tag;
-  logic [`NUMBER_OF_REGISTERS_B - 1 : 0] register_destination;
-  logic [`DATA_SIZE - 1 : 0] value;
+  Register rd;
+  MemoryWord value;
   control_bits ctrl_bits;
 } rob_entry;
 
@@ -160,8 +167,9 @@ typedef struct packed {
   int tag;
   int tag_1;
   int tag_2;
-  logic [`DATA_SIZE - 1 : 0] value_1;
-  logic [`DATA_SIZE - 1 : 0] value_2;
+  MemoryWord value_1;
+  MemoryWord value_2;
+  MemoryWord imm;
   control_bits ctrl_bits;
 } rs_entry;
 
@@ -170,7 +178,7 @@ typedef struct packed {
   memory_instruction_type memory_type;
   int tag;
   logic [`ADDRESS_SIZE - 1 : 0] address;
-  logic [`DATA_SIZE - 1 : 0] value;
+  MemoryWord value;
 } lsq_entry;
 
 
