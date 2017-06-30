@@ -102,8 +102,8 @@ module top
   always_ff @(posedge clk) begin
     if (!i_busy && instruction_response) begin
       $display("%d - Hello World!  @ %x - %x", x, pc, instruction_response);
+      fet_dec_reg <= { instruction_response , pc };
       pc <= next_pc;
-      fet_dec_reg = { instruction_response , pc };
     end
   end
   
@@ -128,7 +128,7 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    dec_regs_reg = {fet_dec_reg.instruction,
+    dec_regs_reg <= {fet_dec_reg.instruction,
                     fet_dec_reg.pc, 
                     rs1, rs2, rd, imm, 
                     ctrl_bits};
@@ -155,7 +155,7 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    regs_dis_reg = { dec_regs_reg.instruction, dec_regs_reg.pc,
+    regs_dis_reg <= { dec_regs_reg.instruction, dec_regs_reg.pc,
                      dec_regs_reg.rs1, dec_regs_reg.rs2, dec_regs_reg.rd, 
                      rs1_value, rs2_value, dec_regs_reg.imm,
                      dec_regs_reg.ctrl_bits };

@@ -247,7 +247,7 @@ module cache
   // Return to processor
   always_ff @(posedge clk) begin : return_to_processor
     if (!busy) begin
-      instruction_response = instruction_response_register[`INSTRUCTION_SIZE - 1 : 0];
+      instruction_response <= instruction_response_register[`INSTRUCTION_SIZE - 1 : 0];
     end
   end
 endmodule
