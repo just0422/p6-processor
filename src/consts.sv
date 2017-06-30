@@ -113,6 +113,12 @@ typedef logic [`IMMEDIATE_SIZE - 1 : 0]         Immediate;
 /////////////////////////////////////////////////////////////////////////////////
 /********************************** REGISTERS **********************************/
 /////////////////////////////////////////////////////////////////////////////////
+// Register between cache and branch prediction 
+typedef struct packed {
+  InstructionWord instruction;
+  MemoryWord pc;
+} cache_branchprediction_register;
+
 // Register between fetch and decode
 typedef struct packed {
   InstructionWord instruction;

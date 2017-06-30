@@ -84,27 +84,37 @@ module top
     .mem_write(0)
   );
 
+  always_ff @(posedge clk) begin
+    cac_bp_reg <= { instruction_response, pc };
+    if (!i_busy && instruction_response && !overwrite_pc) begin
+      pc <= pc + 4;
+      $display("%d - Hello World!  @ %x - %x", x, pc, instruction_response);
+    end
+  end
+
+  cache_branchprediction_register cac_bp_reg;
+
+  /************************ BRANCH PREDICTION ************************/
+  logic overwrite_pc; // Do we need to overwrite the PC??
+
   // Branch Prediction
-  branch_predictor branch_predictor (
+  branch_predictor predict (
     // Housekeeping
     .clk(clk), .reset(reset),
 
     // Inputs
-    .pc(pc),
-    .instruction(instruction_response),
+    .pc(cac_bp_reg.pc),
+    .instruction(cac_bp_reg.instruction),
 
     // Outputs
-    .next_pc(next_pc)
+    .next_pc(next_pc),
+    .overwrite_pc(overwrite_pc)
   );
   
 
   // Assign next PC value 
   always_ff @(posedge clk) begin
-    if (!i_busy && instruction_response) begin
-      $display("%d - Hello World!  @ %x - %x", x, pc, instruction_response);
-      fet_dec_reg <= { instruction_response , pc };
-      pc <= next_pc;
-    end
+    fet_dec_reg <= cac_bp_reg;
   end
   
   fetch_decode_register fet_dec_reg;

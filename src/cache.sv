@@ -140,6 +140,7 @@ module cache
       if (instruction_read) begin// && !busy_register) begin
         // Check cache
         read(instruction_address, instruction_way, instruction_response_register);
+        instruction_response = instruction_response_register[`INSTRUCTION_SIZE - 1 : 0];
      end
     end
   end
@@ -247,7 +248,7 @@ module cache
   // Return to processor
   always_ff @(posedge clk) begin : return_to_processor
     if (!busy) begin
-      instruction_response <= instruction_response_register[`INSTRUCTION_SIZE - 1 : 0];
+  //    instruction_response <= instruction_response_register[`INSTRUCTION_SIZE - 1 : 0];
     end
   end
 endmodule
