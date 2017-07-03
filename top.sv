@@ -5,6 +5,7 @@
 `include "src/branch_prediction.sv"
 `include "src/cache.sv"
 `include "src/decoder.sv"
+`include "src/hazard_detection.sv"
 `include "src/issue.sv"
 `include "src/register_file.sv"
 
@@ -42,12 +43,41 @@ module top
       $finish;
   end
 
+  // Init data structures
+  initial begin
+    $display("Initializing top, entry point = 0x%x", entry);
+
+    for (int i = 0; i < `ROB_SIZE; i++) begin
+      rob[i] = 0;
+      rob[i].tag = i + 1;
+    end
+    
+    for (int i = 0; i < `RS_SIZE; i++) begin
+      res_stations[i] = 0;
+      res_stations[i].id = i + 1;
+    end
+  end
+
   always @ (posedge clk)
     if (reset) begin
       pc <= entry;
     end else begin
 //      $finish;
     end
+
+  /************************** HAZARD DETECTION *****************************/
+  logic frontend_stall;
+  hazard_detection hazards(
+    // Housekeeping
+    .clk(clk), .reset(reset),
+    
+    // Cache hazards
+    .busy(i_busy), .overwrite_pc(overwrite_pc), .instruction(instruction_response),
+
+    // Output
+    .frontend_stall(frontend_stall) // Stall when 1
+  );
+
 
   always_ff @ (posedge clk) begin
     if (!reset)
@@ -87,7 +117,7 @@ module top
 
   always_ff @(posedge clk) begin
     cac_bp_reg <= { instruction_response, pc };
-    if (!i_busy && instruction_response && !overwrite_pc) begin
+    if (!frontend_stall) begin
       pc <= pc + 4;
       $display("%d - Hello World!  @ %x - %x", x, pc, instruction_response);
     end
@@ -115,7 +145,8 @@ module top
 
   // Assign next PC value 
   always_ff @(posedge clk) begin
-    fet_dec_reg <= cac_bp_reg;
+    if (!frontend_stall)
+      fet_dec_reg <= cac_bp_reg;
   end
   
   fetch_decode_register fet_dec_reg;
@@ -139,10 +170,11 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    dec_regs_reg <= {fet_dec_reg.instruction,
-                    fet_dec_reg.pc, 
-                    rs1, rs2, rd, imm, 
-                    ctrl_bits};
+    if (!frontend_stall)
+      dec_regs_reg <= {fet_dec_reg.instruction,
+                      fet_dec_reg.pc, 
+                      rs1, rs2, rd, imm, 
+                      ctrl_bits};
   end
   
   decode_registers_register dec_regs_reg;
@@ -166,11 +198,12 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    regs_dis_reg <= { dec_regs_reg.instruction, dec_regs_reg.pc,
-                     dec_regs_reg.rs1, dec_regs_reg.rs2, dec_regs_reg.rd, 
-                     rs1_value, rs2_value, dec_regs_reg.imm,
-                     dec_regs_reg.ctrl_bits };
-  end
+    if (!frontend_stall)
+      regs_dis_reg <= { dec_regs_reg.instruction, dec_regs_reg.pc,
+                       dec_regs_reg.rs1, dec_regs_reg.rs2, dec_regs_reg.rd, 
+                       rs1_value, rs2_value, dec_regs_reg.imm,
+                       dec_regs_reg.ctrl_bits };
+    end
 
   registers_dispatch_register regs_dis_reg;
   /*********************** INSTRUCTION DISPATCH ***********************/
@@ -213,10 +246,12 @@ module top
   always_ff @(posedge clk) begin
     // add to the rob
     rob[rob_tail - 1] <= re;
+    rob[rob_tail - 1].tag = rob_tail;
 
     for(int i = 0; i < `RS_SIZE; i++) begin
       if(!res_stations[i].busy && !bypass_rs) begin
         res_stations[i] <= rse;
+        res_stations[i].id = i + 1;
       end
     end
 
@@ -228,9 +263,13 @@ module top
 
     // TODO: Perfect ROB/LSQ head/tail logic
     rob_tail <= 1;
+
+    // TODO: Make sure that the ROB entry isn't set before first instruction arrives
+
   end
 
   /***************** ISSUE ************************/
+  issue_execute_register ie_reg1, ie_reg2;
   issue issue(
     // Housekeeping
     .clk(clk), .reset(reset),
@@ -239,14 +278,16 @@ module top
     .res_stations(res_stations),
 
     // Outputs for each pipeline
-    .iss_exe_reg_1(iss_exe_reg_1),
-    .iss_exe_reg_2(iss_exe_reg_2)
+    .iss_exe_reg_1(ie_reg1),
+    .iss_exe_reg_2(ie_reg2)
   );
+
+  always_ff @(posedge clk) begin
+    iss_exe_reg_1 = ie_reg1;
+    iss_exe_reg_2 = ie_reg2;
+  end
 
   /****************** EXECUTE ********************/
   issue_execute_register iss_exe_reg_1;
   issue_execute_register iss_exe_reg_2;
-  initial begin
-    $display("Initializing top, entry point = 0x%x", entry);
-  end
 endmodule
