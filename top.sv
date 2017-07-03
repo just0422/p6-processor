@@ -5,6 +5,7 @@
 `include "src/branch_prediction.sv"
 `include "src/cache.sv"
 `include "src/decoder.sv"
+`include "src/issue.sv"
 `include "src/register_file.sv"
 
 module top
@@ -229,6 +230,22 @@ module top
     rob_tail <= 1;
   end
 
+  /***************** ISSUE ************************/
+  issue issue(
+    // Housekeeping
+    .clk(clk), .reset(reset),
+
+    // Needed to find the next Reservation Station
+    .res_stations(res_stations),
+
+    // Outputs for each pipeline
+    .iss_exe_reg_1(iss_exe_reg_1),
+    .iss_exe_reg_2(iss_exe_reg_2)
+  );
+
+  /****************** EXECUTE ********************/
+  issue_execute_register iss_exe_reg_1;
+  issue_execute_register iss_exe_reg_2;
   initial begin
     $display("Initializing top, entry point = 0x%x", entry);
   end

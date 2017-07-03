@@ -149,6 +149,14 @@ typedef struct packed {
 	control_bits ctrl_bits;
 } registers_dispatch_register;
 
+typedef struct packed {
+  int tag;
+  int rs_id;
+  MemoryWord sourceA;
+  MemoryWord sourceB;
+  MemoryWord data; // For stores
+	control_bits ctrl_bits;
+} issue_execute_register;
 
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -159,6 +167,8 @@ typedef struct packed {
   int tag;
 } map_table_entry;
 
+
+// ROB Entry
 typedef struct packed {
   logic ready;
   int tag;
@@ -167,6 +177,7 @@ typedef struct packed {
   control_bits ctrl_bits;
 } rob_entry;
 
+// Reservation Station Entry
 typedef struct packed {
   logic busy;
   int id;
@@ -179,6 +190,7 @@ typedef struct packed {
   control_bits ctrl_bits;
 } rs_entry;
 
+// Load/Story Queue Entry
 typedef struct packed {
   memory_instruction_category category;
   memory_instruction_type memory_type;
