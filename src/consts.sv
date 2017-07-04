@@ -78,7 +78,7 @@ typedef enum logic [5:0] {
   ADDW, SUBW, SLTW, SRAW, SRLW, SLLW,
   BEQ, BNE, BGE, BLT, BGEU, BLTU,
   //M extention
-  MUL, MULH, MULSU, MULHU, MULHSU,
+  MUL, MULH, MULHU, MULHSU,
   MULW, DIV, DIVU, REM,
   REMU, DIVW, DIVUW,
   REMW, REMUW
@@ -102,10 +102,18 @@ typedef struct packed {
 
 
 
+typedef logic signed [`DATA_SIZE * 2 - 1 : 0]   DoubleWordSigned;
+typedef logic signed [`DATA_SIZE - 1 : 0]       MemoryWordSigned;
+typedef logic signed [`DATA_SIZE / 2 - 1 : 0]   HalfWordSigned;
+typedef logic unsigned [`DATA_SIZE * 2 - 1 : 0] DoubleWordUnsigned;
+typedef logic unsigned [`DATA_SIZE - 1 : 0]     MemoryWordUnsigned;
+typedef logic unsigned [`DATA_SIZE / 2 - 1 : 0] HalfWordUnsigned;
 
 
 
+typedef logic [`DATA_SIZE * 2 - 1 : 0]          DoubleWord;
 typedef logic [`DATA_SIZE - 1 : 0]              MemoryWord;
+typedef logic [`DATA_SIZE / 2 - 1 : 0]          HalfWord;
 typedef logic [`INSTRUCTION_SIZE - 1 : 0]       InstructionWord;
 typedef logic [`NUMBER_OF_REGISTERS_B - 1 : 0]  Register;
 typedef logic [`IMMEDIATE_SIZE - 1 : 0]         Immediate;

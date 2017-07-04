@@ -2,6 +2,7 @@
 `include "src/consts.sv"
 
 `include "src/allocator.sv"
+`include "src/alu.sv"
 `include "src/branch_prediction.sv"
 `include "src/cache.sv"
 `include "src/decoder.sv"
@@ -269,7 +270,7 @@ module top
     end
   end
 
-  /***************** ISSUE ************************/
+  /****************************** ISSUE *******************************/
   issue_execute_register ie_reg1, ie_reg2;
   issue issue(
     // Housekeeping
@@ -288,7 +289,23 @@ module top
     iss_exe_reg_2 = ie_reg2;
   end
 
-  /****************** EXECUTE ********************/
   issue_execute_register iss_exe_reg_1;
   issue_execute_register iss_exe_reg_2;
+  /***************************** EXECUTE ******************************/
+  MemoryWord result1;
+  logic zero1;
+  alu alu1(
+    .ctrl_bits(iss_exe_reg_1.ctrl_bits),
+    .sourceA(iss_exe_reg_1.sourceA),
+    .sourceB(iss_exe_reg_1.sourceB),
+
+    .result(result1),
+    .zero(zero1)
+  );
+
+  always_ff @(posedge clk) begin
+  end
+
+  //execute_memory_register exe_mem_reg_1;
+  //execute_memory_register exe_mem_reg_2;
 endmodule
