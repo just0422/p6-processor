@@ -100,7 +100,7 @@ module allocator
       rse = 0;
       bypass_rs = 1; // Do we need to skip reservation stations
     // Otherwaise behave as normal
-    end else begin
+    end else if (ctrl_bits) begin
       rse.tag = rob_tail;
       rse.busy = 1;
       rse.ctrl_bits = ctrl_bits;
@@ -138,7 +138,7 @@ module allocator
       re.rd = regs_dis_reg.rd;
       re.value = 1;// TODO: DANGER: PC + 4 should be here
     // Otherwise behave as normal
-    end else begin
+    end else if (ctrl_bits) begin
       re.rd = regs_dis_reg.rd;
       re.ctrl_bits = ctrl_bits;
 
@@ -163,7 +163,7 @@ module allocator
     end else if (ctrl_bits.ucjump)
       mte = 0;
     // Otherwise behave as normal
-    else begin
+    else if (ctrl_bits) begin
       mte.tag = rob_tail;
       mte.in_rob = 0;
     end

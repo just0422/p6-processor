@@ -244,28 +244,29 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    // add to the rob
-    rob[rob_tail - 1] <= re;
-    rob[rob_tail - 1].tag = rob_tail;
+    if (!frontend_stall) begin
+      // add to the rob
+      rob[rob_tail - 1] <= re;
+      rob[rob_tail - 1].tag = rob_tail;
 
-    for(int i = 0; i < `RS_SIZE; i++) begin
-      if(!res_stations[i].busy && !bypass_rs) begin
-        res_stations[i] <= rse;
-        res_stations[i].id = i + 1;
+      for(int i = 0; i < `RS_SIZE; i++) begin
+        if(!res_stations[i].busy && !bypass_rs) begin
+          res_stations[i] <= rse;
+          res_stations[i].id = i + 1;
+        end
       end
+
+      if (mte) begin
+        map_table[re.rd] <= mte;
+      end
+
+      // TODO: Add to the LSQ.....
+
+      // TODO: Perfect ROB/LSQ head/tail logic
+      rob_tail <= 1;
+
+      // TODO: Make sure that the ROB entry isn't set before first instruction arrives
     end
-
-    if (mte) begin
-      map_table[re.rd] <= mte;
-    end
-
-    // TODO: Add to the LSQ.....
-
-    // TODO: Perfect ROB/LSQ head/tail logic
-    rob_tail <= 1;
-
-    // TODO: Make sure that the ROB entry isn't set before first instruction arrives
-
   end
 
   /***************** ISSUE ************************/
