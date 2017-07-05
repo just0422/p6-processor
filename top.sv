@@ -75,8 +75,12 @@ module top
     // Cache hazards
     .busy(i_busy), .overwrite_pc(overwrite_pc), .instruction(instruction_response),
 
+    // Hardware hazards
+    .rob_full(rob_full),
+
     // Output
-    .frontend_stall(frontend_stall) // Stall when 1
+    .frontend_stall(frontend_stall), // Stall when 1
+    .rob_increment(rob_increment), // Basicall !frontend_stall
   );
 
 
@@ -152,30 +156,30 @@ module top
   
   fetch_decode_register fet_dec_reg;
   /************************ INSTRUCTION DECODE ************************/
-  Register rs1;
-  Register rs2;
-  Register rd;
-  Immediate imm;
-  control_bits ctrl_bits;
+  Register decode_rs1;
+  Register decode_rs2;
+  Register decode_rd;
+  Immediate decode_imm;
+  control_bits decode_ctrl_bits;
 
   decoder decode(
     // Input
     .instruction(fet_dec_reg.instruction),
 
     // Output
-    .register_source_1(rs1),
-    .register_source_2(rs2),
-    .register_destination(rd),
-    .imm(imm),
-    .ctrl_bits(ctrl_bits)
+    .register_source_1(decode_rs1),
+    .register_source_2(decode_rs2),
+    .register_destination(decode_rd),
+    .imm(decode_imm),
+    .ctrl_bits(decode_ctrl_bits)
   );
 
   always_ff @(posedge clk) begin
     if (!frontend_stall)
       dec_regs_reg <= {fet_dec_reg.instruction,
                       fet_dec_reg.pc, 
-                      rs1, rs2, rd, imm, 
-                      ctrl_bits};
+                      decode_rs1, decode_rs2, decode_rd, decode_imm, 
+                      decode_ctrl_bits};
   end
   
   decode_registers_register dec_regs_reg;
@@ -208,7 +212,9 @@ module top
 
   registers_dispatch_register regs_dis_reg;
   /*********************** INSTRUCTION DISPATCH ***********************/
-  int rob_tail;
+  logic rob_increment, rob_decrement, rob_full;
+  int rob_head, rob_tail;
+  int rob_count;
 
   map_table_entry map_table [`NUMBER_OF_REGISTERS - 1 : 0];   // MAP TABLE
   rob_entry rob [`ROB_SIZE - 1 : 0];                          // ROB
@@ -248,12 +254,12 @@ module top
     if (!frontend_stall) begin
       // add to the rob
       rob[rob_tail - 1] <= re;
-      rob[rob_tail - 1].tag = rob_tail;
+      rob[rob_tail - 1].tag <= rob_tail;
 
       for(int i = 0; i < `RS_SIZE; i++) begin
         if(!res_stations[i].busy && !bypass_rs) begin
           res_stations[i] <= rse;
-          res_stations[i].id = i + 1;
+          res_stations[i].id <= i + 1;
         end
       end
 
@@ -264,14 +270,25 @@ module top
       // TODO: Add to the LSQ.....
 
       // TODO: Perfect ROB/LSQ head/tail logic
-      rob_tail <= 1;
+      //if (re).........
+      rob_tail <= rob_tail % `ROB_SIZE + 1;
+      if (rob_increment ^ rob_decrement)
+        rob_count <= rob_count + 1;
+
+      rob_full <= 0;
+      if (rob_count >= `ROB_SIZE)
+        rob_full <= 1;
 
       // TODO: Make sure that the ROB entry isn't set before first instruction arrives
     end
   end
 
   /****************************** ISSUE *******************************/
-  issue_execute_register ie_reg1, ie_reg2;
+  int tag1, rs_id1;
+  MemoryWord sourceA1, sourceB1, data1;
+  control_bits ctrl_bits1;
+
+  issue_execute_register ie_reg2;
   issue issue(
     // Housekeeping
     .clk(clk), .reset(reset),
@@ -280,12 +297,13 @@ module top
     .res_stations(res_stations),
 
     // Outputs for each pipeline
-    .iss_exe_reg_1(ie_reg1),
+    .tag1(tag1), .rs_id1(rs_id1), .sourceA1(sourceA1), .sourceB1(sourceB1),
+    .data1(data1), .ctrl_bits1(ctrl_bits1),
     .iss_exe_reg_2(ie_reg2)
   );
 
   always_ff @(posedge clk) begin
-    iss_exe_reg_1 = ie_reg1;
+    iss_exe_reg_1 = { tag1, rs_id1, sourceA1, sourceB1, data1, ctrl_bits1 };
     iss_exe_reg_2 = ie_reg2;
   end
 
@@ -294,18 +312,23 @@ module top
   /***************************** EXECUTE ******************************/
   MemoryWord result1;
   logic zero1;
+
   alu alu1(
+    // Inputs
     .ctrl_bits(iss_exe_reg_1.ctrl_bits),
     .sourceA(iss_exe_reg_1.sourceA),
     .sourceB(iss_exe_reg_1.sourceB),
 
+    // Outpus
     .result(result1),
     .zero(zero1)
   );
 
   always_ff @(posedge clk) begin
+    exe_mem_reg_1 = { iss_exe_reg_1.tag, result1, 
+                      iss_exe_reg_1.data, iss_exe_reg_1.ctrl_bits };
   end
 
-  //execute_memory_register exe_mem_reg_1;
-  //execute_memory_register exe_mem_reg_2;
+  execute_memory_register exe_mem_reg_1;
+  execute_memory_register exe_mem_reg_2;
 endmodule

@@ -166,6 +166,13 @@ typedef struct packed {
 	control_bits ctrl_bits;
 } issue_execute_register;
 
+typedef struct packed {
+  int tag;
+  MemoryWord result;
+  MemoryWord data;
+  control_bits ctrl_bits;
+} execute_memory_register;
+
 
 /////////////////////////////////////////////////////////////////////////////////
 /********************************** HARDWARE ***********************************/

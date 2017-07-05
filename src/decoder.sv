@@ -32,6 +32,7 @@ module decoder
     imm = 0;
     //Calculated
     case(op)
+      7'b0000000: begin end
       7'b0110111: begin //LUI
                     ctrl.regwr = 1;
                     ctrl.alusrc = 1;
