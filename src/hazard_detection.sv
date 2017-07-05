@@ -23,7 +23,6 @@ module hazard_detection
   end
 
   always_comb begin
-    rob_increment = !rob_full;
     //rob_increment = !reset;
     //rob_increment &= !busy && !overwrite_pc && instruction;
   end

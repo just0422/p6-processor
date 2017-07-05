@@ -23,7 +23,9 @@ module allocator
   output rob_entry re,
   output rs_entry rse,
   output lsq_entry le,
-  output logic bypass_rs // Should I skip the Reservation stations??
+  
+  output logic bypass_rs, // Should I skip the Reservation stations??
+  output logic rob_increment // Will we need to insert into rob
 );
   
   task assign_tag_value;
@@ -123,7 +125,12 @@ module allocator
   always_comb begin
     control_bits ctrl_bits = regs_dis_reg.ctrl_bits;
     re = 0;
-    re.tag = rob_tail;
+    
+    rob_increment = 0;
+    if (ctrl_bits) begin
+      rob_increment = 1;
+      re.tag = rob_tail;
+    end
 
     // Empty rob entry if it's unsupported
     if (ctrl_bits.unsupported)
@@ -150,6 +157,7 @@ module allocator
   // Create Map Table Entries
   always_comb begin
     control_bits ctrl_bits = regs_dis_reg.ctrl_bits;
+    mte = 0;
     
     // No map table entry needed for Unsupported and Ecall
     if (ctrl_bits.unsupported || ctrl_bits.ecall)

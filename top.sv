@@ -57,6 +57,9 @@ module top
       res_stations[i] = 0;
       res_stations[i].id = i + 1;
     end
+
+    rob_tail = 1;
+    rob_head = 1;
   end
 
   always @ (posedge clk)
@@ -121,8 +124,8 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    cac_bp_reg <= { instruction_response, pc };
     if (!frontend_stall) begin
+      cac_bp_reg <= { instruction_response, pc };
       pc <= pc + 4;
       $display("%d - Hello World!  @ %x - %x", x, pc, instruction_response);
     end
@@ -247,14 +250,26 @@ module top
     .re(re),
     .rse(rse),
     .le(le),
-    .bypass_rs(bypass_rs)
+
+    .bypass_rs(bypass_rs),
+    .rob_increment(rob_increment) // Does an instruction need to be inserted into the rob;
   );
 
   always_ff @(posedge clk) begin
     if (!frontend_stall) begin
       // add to the rob
-      rob[rob_tail - 1] <= re;
-      rob[rob_tail - 1].tag <= rob_tail;
+      if (re) begin
+        rob[rob_tail - 1] <= re;
+        rob[rob_tail - 1].tag <= rob_tail;
+
+        rob_tail <= rob_tail % `ROB_SIZE + 1;
+        if (rob_increment ^ rob_decrement && rob_increment)
+          rob_count <= rob_count + 1;
+
+        rob_full <= 0;
+        if (rob_count + 1 >= `ROB_SIZE)
+          rob_full <= 1;
+      end
 
       for(int i = 0; i < `RS_SIZE; i++) begin
         if(!res_stations[i].busy && !bypass_rs) begin
@@ -270,14 +285,6 @@ module top
       // TODO: Add to the LSQ.....
 
       // TODO: Perfect ROB/LSQ head/tail logic
-      //if (re).........
-      rob_tail <= rob_tail % `ROB_SIZE + 1;
-      if (rob_increment ^ rob_decrement)
-        rob_count <= rob_count + 1;
-
-      rob_full <= 0;
-      if (rob_count >= `ROB_SIZE)
-        rob_full <= 1;
 
       // TODO: Make sure that the ROB entry isn't set before first instruction arrives
     end
