@@ -1,11 +1,12 @@
 `include "Sysbus.defs"
 `include "src/consts.sv"
 
-`include "src/allocator.sv"
 `include "src/alu.sv"
 `include "src/branch_prediction.sv"
 `include "src/cache.sv"
+`include "src/commit.sv"
 `include "src/decoder.sv"
+`include "src/dispatcher.sv"
 `include "src/hazard_detection.sv"
 `include "src/issue.sv"
 `include "src/register_file.sv"
@@ -219,18 +220,20 @@ module top
   int rob_head, rob_tail;
   int rob_count;
 
+  cdb cdb1, cdb2;
+
   map_table_entry map_table [`NUMBER_OF_REGISTERS - 1 : 0];   // MAP TABLE
   rob_entry rob [`ROB_SIZE - 1 : 0];                          // ROB
   lsq_entry lsq [`LSQ_SIZE - 1 : 0];                          // LSQ
   rs_entry res_stations[`RS_SIZE - 1 : 0];                    // RESERVATION STATIONS
 
   // Holds values to be inserted into data structures
-  map_table_entry mte;
-  rs_entry        rse;
-  rob_entry       re;
-  lsq_entry       le;
+  map_table_entry dispatch_mte;
+  rs_entry        dispatch_rse;
+  rob_entry       dispatch_re;
+  lsq_entry       dispatch_le;
 
-  allocator allocate(
+  dispatcher dispatch(
     // Housekeeping
     .clk(clk), .reset(reset),
 
@@ -244,12 +247,14 @@ module top
     .regs_dis_reg(regs_dis_reg),
 
     // TODO: Need to include the CDB
+    .cdb1(cdb1),
+    .cdb2(cdb2),
 
     // Created rows for each data structure
-    .mte(mte),
-    .re(re),
-    .rse(rse),
-    .le(le),
+    .mte(dispatch_mte),
+    .re(dispatch_re),
+    .rse(dispatch_rse),
+    .le(dispatch_le),
 
     .bypass_rs(bypass_rs),
     .rob_increment(rob_increment) // Does an instruction need to be inserted into the rob;
@@ -258,8 +263,8 @@ module top
   always_ff @(posedge clk) begin
     if (!frontend_stall) begin
       // add to the rob
-      if (re) begin
-        rob[rob_tail - 1] <= re;
+      if (dispatch_re) begin
+        rob[rob_tail - 1] <= dispatch_re;
         rob[rob_tail - 1].tag <= rob_tail;
 
         rob_tail <= rob_tail % `ROB_SIZE + 1;
@@ -273,13 +278,13 @@ module top
 
       for(int i = 0; i < `RS_SIZE; i++) begin
         if(!res_stations[i].busy && !bypass_rs) begin
-          res_stations[i] <= rse;
+          res_stations[i] <= dispatch_rse;
           res_stations[i].id <= i + 1;
         end
       end
 
-      if (mte) begin
-        map_table[re.rd] <= mte;
+      if (dispatch_mte) begin
+        map_table[dispatch_re.rd] <= dispatch_mte;
       end
 
       // TODO: Add to the LSQ.....
@@ -312,6 +317,7 @@ module top
   always_ff @(posedge clk) begin
     iss_exe_reg_1 = { tag1, rs_id1, sourceA1, sourceB1, data1, ctrl_bits1 };
     iss_exe_reg_2 = ie_reg2;
+    res_stations[rs_id1 - 1].busy <= 0;
   end
 
   issue_execute_register iss_exe_reg_1;
@@ -338,4 +344,48 @@ module top
 
   execute_memory_register exe_mem_reg_1;
   execute_memory_register exe_mem_reg_2;
+  /***************************** MEMORY *******************************/
+  always_comb begin
+  end
+
+  always_ff @(posedge clk) begin
+    mem_com_reg_1 = { exe_mem_reg_1.tag, exe_mem_reg_1.data, 
+                      exe_mem_reg_1.ctrl_bits };
+  end
+
+  memory_commit_register mem_com_reg_1;
+  memory_commit_register mem_com_reg_2;
+  /***************************** COMMIT *******************************/
+  int cdb_tag1, cdb_tag2;
+  MemoryWord cdb_value1, cdb_value2;
+
+  rob_entry commit_re1;
+  map_table_entry commit_mte1;
+
+  commit commit(
+    // Housekeeping
+    .clk(clk), .reset(reset),
+
+    // Inputs
+    .data1(mem_com_reg_1.data),           .data2(mem_com_reg_2.data), 
+    .tag1 (mem_com_reg_2.tag),            .tag2 (mem_com_reg_2.tag),
+    .ctrl_bits1(mem_com_reg_1.ctrl_bits), .ctrl_bits2(mem_com_reg_2.ctrl_bits),
+
+    .rob_entry1(rob[mem_com_reg_1.tag - 1]),
+    
+    // Outputs
+    .cdb_tag1  (cdb_tag1),   .cdb_tag2(cdb_tag2),
+    .cdb_value1(cdb_value1), .cdb_value2(cdb_value2),
+
+    .re1(commit_re1),
+    .mte1(commit_mte1)
+  );
+
+  always_ff @(posedge clk) begin
+    cdb1 = { cdb_tag1, cdb_value1 };
+    cdb2 = { cdb_tag2, cdb_value2 };
+
+    rob[mem_com_reg_1.tag - 1] <= commit_re1;
+    map_table[commit_re1.rd] <= commit_mte1;
+  end
 endmodule

@@ -1,4 +1,4 @@
-module allocator
+module dispatcher
 (
   input clk,
   input reset,
@@ -13,10 +13,8 @@ module allocator
   input registers_dispatch_register regs_dis_reg,
 
   // CDB Inputs
-  input int cdb_tag_1,
-  input int cdb_tag_2,
-  input logic [`DATA_SIZE-1:0] cdb_value_1,
-  input logic [`DATA_SIZE-1:0] cdb_value_2,
+  input cdb cdb1,
+  input cdb cdb2,
 
   // Should output the created entries (handle indexing outside)
   output map_table_entry mte,
@@ -35,10 +33,10 @@ module allocator
     output int rs_tag;
     begin
       // Check the CDB Broadcasts
-      if (cdb_tag_1 && cdb_tag_1 == map_table[register_source].tag)
-        rs_value = cdb_value_1;
-      else if (cdb_tag_2 && cdb_tag_2 == map_table[register_source].tag)
-        rs_value = cdb_value_2;
+      if (cdb1.tag && cdb1.tag == map_table[register_source].tag)
+        rs_value = cdb1.value;
+      else if (cdb2.tag && cdb2.tag == map_table[register_source].tag)
+        rs_value = cdb2.value;
       // Check for it in the ROB
       else if (map_table[register_source].tag && map_table[register_source].in_rob)
         rs_value = rob[map_table[register_source].tag - 1].value;

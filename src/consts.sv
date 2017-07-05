@@ -173,6 +173,12 @@ typedef struct packed {
   control_bits ctrl_bits;
 } execute_memory_register;
 
+typedef struct packed {
+  int tag;
+  MemoryWord data;
+  control_bits ctrl_bits;
+} memory_commit_register;
+
 
 /////////////////////////////////////////////////////////////////////////////////
 /********************************** HARDWARE ***********************************/
@@ -214,4 +220,7 @@ typedef struct packed {
   MemoryWord value;
 } lsq_entry;
 
-
+typedef struct packed {
+  MemoryWord value;
+  int tag;
+} cdb;
