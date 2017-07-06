@@ -242,6 +242,8 @@ module top
 
     // The tag that will be associated with this entry
     .rob_tail(rob_tail),
+    .rob_count(rob_count),
+    .frontend_stall(frontend_stall),
   
     // Need to read from the hardware structures
     .rob(rob),
@@ -260,6 +262,7 @@ module top
     .le(dispatch_le),
 
     .bypass_rs(bypass_rs),
+    .rob_full(rob_full),
     .rob_increment(rob_increment) // Does an instruction need to be inserted into the rob;
   );
 
@@ -274,9 +277,6 @@ module top
         if (rob_increment ^ rob_decrement && rob_increment)
           rob_count <= rob_count + 1;
 
-        rob_full <= 0;
-        if (rob_count + 1 >= `ROB_SIZE)
-          rob_full <= 1;
       end
 
       for(int i = 0; i < `RS_SIZE; i++) begin

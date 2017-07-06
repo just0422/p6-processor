@@ -5,6 +5,8 @@ module dispatcher
 
   // The tag that will be associated with this entry
   input int rob_tail,
+  input int rob_count,
+  input logic frontend_stall,
  
   // Needed for assigning values an tags
   input map_table_entry map_table[`NUMBER_OF_REGISTERS - 1 : 0],
@@ -23,6 +25,7 @@ module dispatcher
   output lsq_entry le,
   
   output logic bypass_rs, // Should I skip the Reservation stations??
+  output logic rob_full,
   output logic rob_increment // Will we need to insert into rob
 );
   
@@ -125,10 +128,16 @@ module dispatcher
     re = 0;
     
     rob_increment = 0;
-    if (ctrl_bits) begin
+    if (ctrl_bits && !frontend_stall) begin
       rob_increment = 1;
       re.tag = rob_tail;
     end
+
+    rob_full = 0;
+    if (rob_count >= `ROB_SIZE) begin
+      rob_full = 1;
+    end
+
 
     // Empty rob entry if it's unsupported
     if (ctrl_bits.unsupported)

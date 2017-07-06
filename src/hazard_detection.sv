@@ -15,7 +15,7 @@ module hazard_detection
   output rob_increment, rob_decrement
 );
 
-  always_comb begin
+  always_ff @(posedge clk) begin
     frontend_stall = reset;
 
     frontend_stall |= (busy || overwrite_pc || !instruction);
