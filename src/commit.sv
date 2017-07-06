@@ -8,8 +8,8 @@ module commit (
 
   input rob_entry rob_entry1,
 
-  output cdb_tag1, cdb_tag2,
-  output cdb_value1, cdb_value2,
+  output int cdb_tag1, cdb_tag2,
+  output MemoryWord cdb_value1, cdb_value2,
 
   output rob_entry re1,
   output map_table_entry mte1

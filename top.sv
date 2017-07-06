@@ -10,6 +10,7 @@
 `include "src/hazard_detection.sv"
 `include "src/issue.sv"
 `include "src/register_file.sv"
+`include "src/retire.sv"
 
 module top
 #(
@@ -192,16 +193,18 @@ module top
   logic [`DATA_SIZE - 1 : 0] rs2_value;
   logic [`DATA_SIZE - 1 : 0] imm_value;
 
-  register_file register_file (
+  register_file register_update (
     // House keeping
     .clk(clk), .reset(reset),
 
     // Register Read Inputs
     .rs1_in(dec_regs_reg.rs1),  .rs2_in(dec_regs_reg.rs2),
     // Register Read Outputs
-    .rs1_out(rs1_value),        .rs2_out(rs2_value)
+    .rs1_out(rs1_value),        .rs2_out(rs2_value),
 
 
+    // Register Write Inputs
+    .rd(write_rd), .data(write_data), .regwr(write_regwr)
     // TODO
     // DONT FORGET ABOUT THE STACKPTR WHEN WRITING 
   );
@@ -315,7 +318,7 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    iss_exe_reg_1 = { tag1, rs_id1, sourceA1, sourceB1, data1, ctrl_bits1 };
+    iss_exe_reg_1 = { tag1, sourceA1, sourceB1, data1, ctrl_bits1 };
     iss_exe_reg_2 = ie_reg2;
     res_stations[rs_id1 - 1].busy <= 0;
   end
@@ -345,11 +348,13 @@ module top
   execute_memory_register exe_mem_reg_1;
   execute_memory_register exe_mem_reg_2;
   /***************************** MEMORY *******************************/
+  MemoryWord memory_data1;
   always_comb begin
+    memory_data1 = exe_mem_reg_1.result;
   end
 
   always_ff @(posedge clk) begin
-    mem_com_reg_1 = { exe_mem_reg_1.tag, exe_mem_reg_1.data, 
+    mem_com_reg_1 = { exe_mem_reg_1.tag, memory_data1, 
                       exe_mem_reg_1.ctrl_bits };
   end
 
@@ -368,7 +373,7 @@ module top
 
     // Inputs
     .data1(mem_com_reg_1.data),           .data2(mem_com_reg_2.data), 
-    .tag1 (mem_com_reg_2.tag),            .tag2 (mem_com_reg_2.tag),
+    .tag1 (mem_com_reg_1.tag),            .tag2 (mem_com_reg_2.tag),
     .ctrl_bits1(mem_com_reg_1.ctrl_bits), .ctrl_bits2(mem_com_reg_2.ctrl_bits),
 
     .rob_entry1(rob[mem_com_reg_1.tag - 1]),
@@ -382,10 +387,59 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    cdb1 = { cdb_tag1, cdb_value1 };
-    cdb2 = { cdb_tag2, cdb_value2 };
-
-    rob[mem_com_reg_1.tag - 1] <= commit_re1;
+    cdb1 <= { cdb_tag1, cdb_value1 };
+    cdb2 <= { cdb_tag2, cdb_value2 };
+    
+    rob[cdb_tag1 - 1] <= commit_re1;
     map_table[commit_re1.rd] <= commit_mte1;
   end
+
+
+  
+  /***************************** RETIRE *******************************/
+  Register retire_rd;
+  MemoryWord retire_value;
+  rob_entry retire_re;
+  map_table_entry retire_mte;
+  
+  retire retire(
+    // Housekeeping
+    .clk(clk), .reset(reset),
+
+    .rob_head(rob[rob_head - 1]),
+    
+    // Outputs
+    .rd(retire_rd), .value(retire_value),
+    .mte(retire_mte),
+    .re(retire_re),
+
+    .rob_decrement(rob_decrement)
+  );
+ 
+  Register write_rd;
+  MemoryWord write_data;
+  logic write_regwr;
+  always_ff @(posedge clk) begin
+    if (retire_re.ready) begin
+      if (retire_rd) begin
+        write_rd <= retire_rd;
+        write_data <= retire_value;
+        write_regwr <= retire_re.ctrl_bits.regwr;
+        
+
+        // HMMMMM Will a later instruction entering the map table make this useless??
+        //map_table[retire_re.rd] = retire_mte;
+      end
+
+
+      rob[rob_head - 1] = 0;
+      rob[rob_head - 1].tag = retire_re.tag;
+
+      rob_head <= rob_head % `ROB_SIZE + 1;
+      if (rob_increment ^ rob_decrement && rob_decrement)
+        rob_count <= rob_count - 1;
+
+    end
+  end
+   
 endmodule

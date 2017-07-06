@@ -159,7 +159,6 @@ typedef struct packed {
 
 typedef struct packed {
   int tag;
-  int rs_id;
   MemoryWord sourceA;
   MemoryWord sourceB;
   MemoryWord data; // For stores
@@ -175,7 +174,7 @@ typedef struct packed {
 
 typedef struct packed {
   int tag;
-  MemoryWord data;
+  MemoryWord data; // For loads/results
   control_bits ctrl_bits;
 } memory_commit_register;
 
@@ -221,6 +220,6 @@ typedef struct packed {
 } lsq_entry;
 
 typedef struct packed {
-  MemoryWord value;
   int tag;
+  MemoryWord value;
 } cdb;
