@@ -305,6 +305,30 @@ module top
     end
   end
 
+  task capture_data;
+    input cdb cdbx;
+    begin
+      if (cdbx.tag) begin
+        for (int i = 0; i < `RS_SIZE; i++) begin
+          if (res_stations[i].busy) begin
+            if (res_stations[i].tag_1 == cdbx.tag) begin
+              res_stations[i].value_1 <= cdbx.value;
+              res_stations[i].tag_1 <= 0;
+            end
+            if (res_stations[i].tag_2 == cdbx.tag) begin
+              res_stations[i].value_2 <= cdbx.value;
+              res_stations[i].tag_2 <= 0;
+            end
+          end
+        end
+      end
+    end
+  endtask
+
+  always_ff @(posedge clk) begin
+    capture_data (cdb1);
+    capture_data (cdb2);
+  end
 
   /****************************** ISSUE *******************************/
   int tag1, rs_id1;
