@@ -26,7 +26,6 @@ module retire (
 
       rob_decrement = 1;
       re = rob_head;
-
     end
 
   end
