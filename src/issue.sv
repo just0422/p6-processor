@@ -21,6 +21,7 @@ module issue
     sourceA1 = 0;
     sourceB1 = 0;
     data1 = 0;
+    ctrl_bits1 = 0;
 
     iss_exe_reg_2 = 0;
 

@@ -4,6 +4,7 @@ module retire (
 
   input rob_entry rob_head,
 
+  output regwr,
   output Register rd,
   output MemoryWord value,
 
@@ -23,6 +24,7 @@ module retire (
     if (rob_head.ready) begin
       rd = rob_head.rd;
       value = rob_head.value;
+      regwr = rob_head.ctrl_bits.regwr;
 
       rob_decrement = 1;
       re = rob_head;

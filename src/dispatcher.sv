@@ -24,6 +24,7 @@ module dispatcher
   output rs_entry rse,
   output lsq_entry le,
   
+  output int station_id,
   output logic bypass_rs, // Should I skip the Reservation stations??
   output logic rob_full,
   output logic rob_increment // Will we need to insert into rob
@@ -35,6 +36,8 @@ module dispatcher
     output MemoryWord rs_value;
     output int rs_tag;
     begin
+      rs_value = 0;
+      rs_tag = 0;
       // Check the CDB Broadcasts
       if (cdb1.tag && cdb1.tag == map_table[register_source].tag)
         rs_value = cdb1.value;
@@ -54,7 +57,7 @@ module dispatcher
 
   // Create Reservation station entry
   always_comb begin
-    logic [`DATA_SIZE-1:0] rs_val_1 = 0, rs_val_2 = 0;
+    MemoryWord rs_val_1 = 0, rs_val_2 = 0;
     int rs_tag_1 = 0, rs_tag_2 = 0;
     control_bits ctrl_bits = regs_dis_reg.ctrl_bits;
     
@@ -122,6 +125,17 @@ module dispatcher
     end
   end
 
+  // Find empty reservation station
+  always_comb begin
+    station_id = 0;
+    for (int i = 0; i < `RS_SIZE; i++) begin
+      if (!res_stations[i].busy) begin
+        station_id = i;
+        break;
+      end
+    end
+  end
+
   // Create ROB Entries
   always_comb begin
     control_bits ctrl_bits = regs_dis_reg.ctrl_bits;
@@ -130,7 +144,6 @@ module dispatcher
     rob_increment = 0;
     if (ctrl_bits && !frontend_stall) begin
       rob_increment = 1;
-      re.tag = rob_tail;
     end
 
     rob_full = 0;
@@ -172,14 +185,14 @@ module dispatcher
     // Set entry as ready for JALR
     // TODO: check this to see if the logic is correct
     else if (ctrl_bits.ucjump && ctrl_bits.alusrc)begin
-      mte.tag = rob_tail;
+      mte.tag = rob[rob_tail - 1].tag;
       mte.in_rob = 1;
     // No map table entry needed for JAL
     end else if (ctrl_bits.ucjump)
       mte = 0;
     // Otherwise behave as normal
     else if (ctrl_bits) begin
-      mte.tag = rob_tail;
+      mte.tag = rob[rob_tail - 1].tag;
       mte.in_rob = 0;
     end
   end

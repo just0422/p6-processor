@@ -60,8 +60,14 @@ module top
       res_stations[i].id = i + 1;
     end
 
+    for (int i = 0; i < `NUMBER_OF_REGISTERS; i++) begin
+      register_file[i] = 0;
+    end
+
     rob_tail = 1;
     rob_head = 1;
+
+    register_file[2] = stackptr;
   end
 
   always @ (posedge clk)
@@ -189,24 +195,25 @@ module top
   
   decode_registers_register dec_regs_reg;
   /************************ REGISTER FETCH ******************************/
-  logic [`DATA_SIZE - 1 : 0] rs1_value;
-  logic [`DATA_SIZE - 1 : 0] rs2_value;
-  logic [`DATA_SIZE - 1 : 0] imm_value;
+  MemoryWord rs1_value;
+  MemoryWord rs2_value;
+  MemoryWord imm_value;
+  MemoryWord register_file [`NUMBER_OF_REGISTERS - 1 : 0];
 
   register_file register_update (
     // House keeping
     .clk(clk), .reset(reset),
+    
+    // Register file input
+    .register_file(register_file),
 
     // Register Read Inputs
     .rs1_in(dec_regs_reg.rs1),  .rs2_in(dec_regs_reg.rs2),
     // Register Read Outputs
-    .rs1_out(rs1_value),        .rs2_out(rs2_value),
-
+    .rs1_out(rs1_value),        .rs2_out(rs2_value)
 
     // Register Write Inputs
-    .rd(write_rd), .data(write_data), .regwr(write_regwr)
-    // TODO
-    // DONT FORGET ABOUT THE STACKPTR WHEN WRITING 
+    // .rd(write_rd), .data(write_data), .regwr(write_regwr)
   );
 
   always_ff @(posedge clk) begin
@@ -222,6 +229,7 @@ module top
   logic rob_increment, rob_decrement, rob_full;
   int rob_head, rob_tail;
   int rob_count;
+  int res_station_id;
 
   cdb cdb1, cdb2;
 
@@ -251,7 +259,7 @@ module top
     .res_stations(res_stations),
     .regs_dis_reg(regs_dis_reg),
 
-    // TODO: Need to include the CDB
+    // Need to include the CDB
     .cdb1(cdb1),
     .cdb2(cdb2),
 
@@ -261,17 +269,20 @@ module top
     .rse(dispatch_rse),
     .le(dispatch_le),
 
+    .station_id(res_station_id),
     .bypass_rs(bypass_rs),
     .rob_full(rob_full),
     .rob_increment(rob_increment) // Does an instruction need to be inserted into the rob;
   );
 
   always_ff @(posedge clk) begin
+    int rob_tag;
     if (!frontend_stall) begin
       // add to the rob
       if (dispatch_re) begin
+        rob_tag = rob[rob_tail - 1].tag;
         rob[rob_tail - 1] <= dispatch_re;
-        rob[rob_tail - 1].tag <= rob_tail;
+        rob[rob_tail - 1].tag <= rob_tag;
 
         rob_tail <= rob_tail % `ROB_SIZE + 1;
         if (rob_increment ^ rob_decrement && rob_increment)
@@ -279,12 +290,8 @@ module top
 
       end
 
-      for(int i = 0; i < `RS_SIZE; i++) begin
-        if(!res_stations[i].busy && !bypass_rs) begin
-          res_stations[i] <= dispatch_rse;
-          res_stations[i].id <= i + 1;
-        end
-      end
+      res_stations[res_station_id] <= dispatch_rse;
+      res_stations[res_station_id].id <= res_station_id + 1;
 
       if (dispatch_mte) begin
         map_table[dispatch_re.rd] <= dispatch_mte;
@@ -297,6 +304,7 @@ module top
       // TODO: Make sure that the ROB entry isn't set before first instruction arrives
     end
   end
+
 
   /****************************** ISSUE *******************************/
   int tag1, rs_id1;
@@ -318,9 +326,10 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    iss_exe_reg_1 = { tag1, sourceA1, sourceB1, data1, ctrl_bits1 };
-    iss_exe_reg_2 = ie_reg2;
-    res_stations[rs_id1 - 1].busy <= 0;
+    iss_exe_reg_1 <= { tag1, sourceA1, sourceB1, data1, ctrl_bits1 };
+    iss_exe_reg_2 <= ie_reg2;
+    if (rs_id1 > 0)
+      res_stations[rs_id1 - 1].busy <= 0;
   end
 
   issue_execute_register iss_exe_reg_1;
@@ -341,7 +350,7 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    exe_mem_reg_1 = { iss_exe_reg_1.tag, result1, 
+    exe_mem_reg_1 <= { iss_exe_reg_1.tag, result1, 
                       iss_exe_reg_1.data, iss_exe_reg_1.ctrl_bits };
   end
 
@@ -354,7 +363,7 @@ module top
   end
 
   always_ff @(posedge clk) begin
-    mem_com_reg_1 = { exe_mem_reg_1.tag, memory_data1, 
+    mem_com_reg_1 <= { exe_mem_reg_1.tag, memory_data1, 
                       exe_mem_reg_1.ctrl_bits };
   end
 
@@ -390,13 +399,15 @@ module top
     cdb1 <= { cdb_tag1, cdb_value1 };
     cdb2 <= { cdb_tag2, cdb_value2 };
     
-    rob[cdb_tag1 - 1] <= commit_re1;
+    if (cdb_tag1 > 0)
+      rob[cdb_tag1 - 1] <= commit_re1;
     map_table[commit_re1.rd] <= commit_mte1;
   end
 
 
   
   /***************************** RETIRE *******************************/
+  logic retire_regwr;
   Register retire_rd;
   MemoryWord retire_value;
   rob_entry retire_re;
@@ -412,6 +423,7 @@ module top
     .rd(retire_rd), .value(retire_value),
     .mte(retire_mte),
     .re(retire_re),
+    .regwr(retire_regwr),
 
     .rob_decrement(rob_decrement)
   );
@@ -420,21 +432,27 @@ module top
   MemoryWord write_data;
   logic write_regwr;
   always_ff @(posedge clk) begin
+    write_rd <= 0;
+    write_data <= 0;
+    write_regwr <= 0;
+
     if (retire_re.ready) begin
-      if (retire_rd) begin
+      if (retire_regwr) begin
         write_rd <= retire_rd;
         write_data <= retire_value;
-        write_regwr <= retire_re.ctrl_bits.regwr;
+        write_regwr <= retire_regwr;
+
+        register_file[retire_rd] <= retire_value;
         
 
         // HMMMMM Will a later instruction entering the map table make this useless??
-        if (map_table[retire_re.rd].tag == retire_re.tag)
-          map_table[retire_re.rd] = retire_mte;
+        //if (map_table[retire_re.rd].tag == retire_re.tag)
+        //  map_table[retire_re.rd] <= retire_mte;
       end
 
 
-      rob[rob_head - 1] = 0;
-      rob[rob_head - 1].tag = retire_re.tag;
+      rob[rob_head - 1] <= 0;
+      rob[rob_head - 1].tag <= retire_re.tag;
 
       rob_head <= rob_head % `ROB_SIZE + 1;
       if (rob_increment ^ rob_decrement && rob_decrement)

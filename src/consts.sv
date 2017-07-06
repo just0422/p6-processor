@@ -9,7 +9,7 @@
 `define INDEX_SIZE_B                $clog2(`INDEX_SIZE - 1)
 `define INDEXES_PER_WAY             32
 `define INSTRUCTION_SIZE            32
-`define LSQ_SIZE                    1
+`define LSQ_SIZE                    4
 `define MEM_READ                    0'h1100
 `define NUMBER_OF_REGISTERS         32
 `define NUMBER_OF_REGISTERS_B       $clog2(`NUMBER_OF_REGISTERS - 1)
