@@ -423,9 +423,10 @@ module top
     cdb1 <= { cdb_tag1, cdb_value1 };
     cdb2 <= { cdb_tag2, cdb_value2 };
     
-    if (cdb_tag1 > 0)
-      rob[cdb_tag1 - 1] <= commit_re1;
-    map_table[commit_re1.rd] <= commit_mte1;
+    if (commit_re1)
+      rob[commit_re1.tag - 1] <= commit_re1;
+    if (commit_re1.ctrl_bits.regwr)
+      map_table[commit_re1.rd] <= commit_mte1;
   end
 
 

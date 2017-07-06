@@ -27,15 +27,18 @@ module commit (
 
   // Update rob entry
   always_comb begin
-    re1 = rob_entry1;
-    mte1 = 0;
+    re1 = 0;
+    if (tag1 > 0) begin
+      re1 = rob_entry1;
+      mte1 = 0;
 
-    if (ctrl_bits1.regwr) begin
-      re1.value = data1;
-      mte1.tag = tag1;
-      mte1.in_rob = 1;
+      if (ctrl_bits1.regwr) begin
+        re1.value = data1;
+        mte1.tag = tag1;
+        mte1.in_rob = 1;
+      end
+
+      re1.ready = 1; 
     end
-
-    re1.ready = 1; 
   end
 endmodule
