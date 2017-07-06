@@ -428,7 +428,8 @@ module top
         
 
         // HMMMMM Will a later instruction entering the map table make this useless??
-        //map_table[retire_re.rd] = retire_mte;
+        if (map_table[retire_re.rd].tag == retire_re.tag)
+          map_table[retire_re.rd] = retire_mte;
       end
 
 
