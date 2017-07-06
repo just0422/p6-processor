@@ -78,7 +78,7 @@ module top
     end
 
   /************************** HAZARD DETECTION *****************************/
-  logic frontend_stall;
+  logic frontend_stall, backend_stall;
   hazard_detection hazards(
     // Housekeeping
     .clk(clk), .reset(reset),
@@ -90,6 +90,7 @@ module top
     .rob_full(rob_full),
 
     // Output
+    .backend_stall(backend_stall), // Stall when 1
     .frontend_stall(frontend_stall), // Stall when 1
     .rob_increment(rob_increment), // Basicall !frontend_stall
   );
@@ -350,10 +351,12 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    iss_exe_reg_1 <= { tag1, sourceA1, sourceB1, data1, ctrl_bits1 };
-    iss_exe_reg_2 <= ie_reg2;
-    if (rs_id1 > 0)
-      res_stations[rs_id1 - 1].busy <= 0;
+    if (!backend_stall) begin
+      iss_exe_reg_1 <= { tag1, sourceA1, sourceB1, data1, ctrl_bits1 };
+      iss_exe_reg_2 <= ie_reg2;
+      if (rs_id1 > 0)
+        res_stations[rs_id1 - 1].busy <= 0;
+    end
   end
 
   issue_execute_register iss_exe_reg_1;
@@ -374,8 +377,9 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    exe_mem_reg_1 <= { iss_exe_reg_1.tag, result1, 
-                      iss_exe_reg_1.data, iss_exe_reg_1.ctrl_bits };
+    if (!backend_stall)
+      exe_mem_reg_1 <= { iss_exe_reg_1.tag, result1, 
+                         iss_exe_reg_1.data, iss_exe_reg_1.ctrl_bits };
   end
 
   execute_memory_register exe_mem_reg_1;
@@ -387,8 +391,9 @@ module top
   end
 
   always_ff @(posedge clk) begin
-    mem_com_reg_1 <= { exe_mem_reg_1.tag, memory_data1, 
-                      exe_mem_reg_1.ctrl_bits };
+    if (!backend_stall)
+      mem_com_reg_1 <= { exe_mem_reg_1.tag, memory_data1, 
+                         exe_mem_reg_1.ctrl_bits };
   end
 
   memory_commit_register mem_com_reg_1;
@@ -420,13 +425,15 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    cdb1 <= { cdb_tag1, cdb_value1 };
-    cdb2 <= { cdb_tag2, cdb_value2 };
-    
-    if (commit_re1)
-      rob[commit_re1.tag - 1] <= commit_re1;
-    if (commit_re1.ctrl_bits.regwr)
-      map_table[commit_re1.rd] <= commit_mte1;
+    if (!backend_stall) begin
+      cdb1 <= { cdb_tag1, cdb_value1 };
+      cdb2 <= { cdb_tag2, cdb_value2 };
+      
+      if (commit_re1)
+        rob[commit_re1.tag - 1] <= commit_re1;
+      if (commit_re1.ctrl_bits.regwr)
+        map_table[commit_re1.rd] <= commit_mte1;
+    end
   end
 
 

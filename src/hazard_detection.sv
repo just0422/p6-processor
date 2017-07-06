@@ -11,7 +11,7 @@ module hazard_detection
   input rob_full,
 
   // Outputs
-  output frontend_stall,
+  output frontend_stall, backend_stall,
   output rob_increment, rob_decrement
 );
 
@@ -24,6 +24,7 @@ module hazard_detection
   end
 
   always_comb begin
+    backend_stall = 0;
     //rob_increment = !reset;
     //rob_increment &= !busy && !overwrite_pc && instruction;
   end
