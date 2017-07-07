@@ -25,10 +25,28 @@
 `define WAYS_B                      $clog2(`WAYS - 1)
 
 
+// Cache Sizes
+`define DOUBLE                      `DATA_SIZE
+`define DOUBLE_B                    $clog2(`DOUBLE - 1) - 3
+`define WORD                        `DOUBLE / 2
+`define WORD_B                      $clog2(`WORD - 1) - 3
+`define HALF                        `WORD / 2
+`define HALF_B                      $clog2(`HALF - 1) - 3
+`define BYTE                        `HALF / 2
+`define BYTE_B                      $clog2(`BYTE - 1) - 3
+
+
 // Data Structure Lengths
 `define CONTROL_BITS_SIZE           $bits(control_bits)
 
 
+
+typedef logic [`ADDRESS_SIZE - 1 : 0]                                 Address;
+typedef logic [`CELLS_NEEDED * 2 - 1 : 0][`INSTRUCTION_SIZE - 1 : 0]  InstructionLine;
+typedef logic [`CELLS_NEEDED - 1 : 0][`DOUBLE - 1 : 0]                DoubleLine;
+typedef logic [`CELLS_NEEDED * 2 - 1 : 0][`WORD - 1 : 0]              WordLine;
+typedef logic [`CELLS_NEEDED * 4 - 1 : 0][`HALF - 1 : 0]              HalfLine;
+typedef logic [`CELLS_NEEDED * 8 - 1 : 0][`BYTE - 1 : 0]              ByteLine;
 // OFFSET bits will alawys be a multiple of 4
 // TAG SIZE + INDEX + OFFSET
 //   53         5       6

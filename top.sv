@@ -122,14 +122,15 @@ module top
     .bus_resptag(bus_resptag),        .bus_req(bus_req),
     .bus_resp(bus_resp),              .bus_reqtag(bus_reqtag), 
          
-    .busy(i_busy),
+    .instruction_busy(i_busy),
+    .data_busy1(d_busy),
     
     .instruction_read(instruction_read),
     .instruction_address(pc),
     .instruction_response(instruction_response),
 
-    .mem_read(0),
-    .mem_write(0)
+    .mem_read1(0),
+    .mem_write1(0)
   );
 
   always_ff @(posedge clk) begin

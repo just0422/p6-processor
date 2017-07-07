@@ -22,7 +22,7 @@ module cache
   output [`BUS_TAG_WIDTH - 1 : 0] bus_reqtag,
 
   // Hazard signals
-  output busy,
+  output instruction_busy, data_busy1, data_busy2,
 
   // Instruction Read Request
   input instruction_read,
@@ -31,10 +31,12 @@ module cache
   //output instruction_busy,
 
   // Data Request
-  input mem_read,
-  input mem_write,
-  input [`ADDRESS_SIZE - 1 : 0] data_address,
-  output [`DATA_SIZE - 1 : 0] data_response
+  input                         mem_read1,      mem_read2,
+  input                         mem_write1,     mem_write2,
+  input Address                 data_address1,  data_address2,
+  input MemoryWord              data_write1,    data_write2,
+  input memory_instruction_type memory_type1,   memory_type2,
+  output MemoryWord             data_response1, data_response2
   //output data_busy
 );
 
@@ -44,24 +46,73 @@ module cache
   logic busy_register;
   logic [`BUS_DATA_WIDTH - 1 : 0] response_register;
   logic waiting; // Waiting for memory response
-  logic miss; // Did we miss in cache??
+  logic data_miss1, data_miss2, instruction_miss; // Did we miss in cache??
   logic inserting; // Are we currently inserting into the cache
-  
 
-  task read;
-    input [`ADDRESS_SIZE - 1 : 0] address;
+  task read_data;
+    input Address address;
+    input memory_instruction_type memory_type;
     input full_cache fc_in;
-    output [`DATA_SIZE - 1 : 0] value;
+    output data_busy;
+    output data_miss;
+    output MemoryWord value;
+    begin
+      DoubleLine double_cells;
+      WordLine word_cells;
+      HalfLine half_cells;
+      ByteLine byte_cells;
+
+      cache_address ca = address;
+      
+      value = 0;
+
+      if (!waiting && !inserting)
+        data_miss = 1;
+      else
+        data_miss = 0;
+
+      for (int i = 0; i < `WAYS; i++) begin
+        cache_block cb = fc_in[i];
+        cache_line cl = cb[ca.index];
+
+        if (ca.tag == cl.tag && cl.valid) begin
+          double_cells = cl.cache_cells;
+          word_cells = cl.cache_cells;
+          half_cells = cl.cache_cells;
+          byte_cells = cl.cache_cells;
+
+          data_miss = 0;
+          data_busy = 0;
+
+          // value = _____[ca.offset]
+          case(memory_type)
+            LD : value = double_cells[ca.offset];
+            LW : value = { { 32 { word_cells[ca.offset][31] } }, word_cells[ca.offset] };
+            LH : value = { { 48 { half_cells[ca.offset][15] } }, half_cells[ca.offset] };
+            LB : value = { { 56 {  byte_cells[ca.offset][7] } }, byte_cells[ca.offset] };
+            LWU: value = word_cells[ca.offset] & 32'hFFFFFFFF;
+            LHU: value = half_cells[ca.offset] & 16'hFFFF;
+            LBU: value = half_cells[ca.offset] &  8'hFF;
+          endcase
+        end
+      end
+    end
+  endtask
+
+  task read_instruction;
+    input Address address;
+    input full_cache fc_in;
+    output instruction_busy;
+    output MemoryWord value;
     begin
       cache_address ca = address;
-      logic [`CELLS_NEEDED * 2 - 1 : 0][`INSTRUCTION_SIZE - 1 : 0] instruction_cells;
+      InstructionLine instruction_cells;
 
-      busy = 1;
       value = 0;
       if (!waiting && !inserting) 
-        miss = 1; 
+        instruction_miss = 1; 
       else
-        miss = 0;
+        instruction_miss = 0;
 
       // No break because no block should ever have the same tag
       for (int i = 0; i < `WAYS; i++) begin
@@ -69,8 +120,8 @@ module cache
         cache_line cl = cb[ca.index]; // Get cache line 'cl' cb[index]
         if (ca.tag == cl.tag && cl.valid) begin // IF address tag and cache set tag are the same
           instruction_cells = cl.cache_cells; // Cast cache_cells to instruction_cells for size_purposes
-          miss = 0;
-          busy = 0;
+          instruction_miss = 0;
+          instruction_busy = 0;
           value = instruction_cells[ca.offset >> 2]; // grab value at offset
       //    $display("%d - %x", ca.index, cl);
       //    $display("%b", ca);
@@ -128,18 +179,34 @@ module cache
     end
   endtask
 
+  /*task insert_data;
+    input Address address;
+    input MemoryWord value;
+    input full_cache fc_in;
+
   /******************* STEP 1 *************************/
   // Find in cache or prep for emory request
-  logic [`DATA_SIZE - 1 : 0] instruction_response_register;
+  MemoryWord instruction_response_register;
   always_comb begin : cache_or_mem
     if (!reset) begin
-      if (mem_read ^ mem_write) begin
+      data_busy1 = 1;
+      data_busy2 = 1;
+      instruction_busy = 1;
+
+      if (mem_write1) begin
+        // Write to cache
+        //insert_data();
+      end else if (mem_write2) begin
+        //insert_data();
+      end else if (mem_read1) begin
         // Send a data read request
-//        read(instruction_address, data_way, ir;
-      end 
-      if (instruction_read) begin// && !busy_register) begin
+        read_data(data_address1, memory_type1, data_way, data_busy1, data_miss1, data_response1);
+      end else if (mem_read2) begin
+        // Send a data read request
+        read_data(data_address2, memory_type2, data_way, data_busy2, data_miss2, data_response2);
+      end else if (instruction_read) begin// && !busy_register) begin
         // Check cache
-        read(instruction_address, instruction_way, instruction_response_register);
+        read_instruction(instruction_address, instruction_way, instruction_busy, instruction_response_register);
         instruction_response = instruction_response_register[`INSTRUCTION_SIZE - 1 : 0];
      end
     end
@@ -148,13 +215,27 @@ module cache
   /******************* STEP 2a **************************/
   // Send request to memory
   logic response_received;
-  logic [`ADDRESS_SIZE - 1 : 0] instruction_address_register;
+  Address instruction_address_register;
+  Address data_address1_register;
+  Address data_address2_register;
   logic [`CELLS_NEEDED_B : 0] current_request_offset;
   always_ff @(posedge clk) begin : make_request
     instruction_address_register = instruction_address;
+    data_address1_register = data_address1;
+    data_address2_register = data_address2;
     // ** Should reach here first
     // If Instruction is not in cache
-    if (miss) begin
+    if (data_miss1) begin
+      bus_req <= data_address1 & 64'hfffffffffffffff8;// + (current_request_offset * `CELLS_NEEDED_B);
+      bus_reqtag <= `MEM_READ;
+      bus_reqcyc <= 1;
+      waiting <= 1;
+    end else if (data_miss2) begin
+      bus_req <= data_address2 & 64'hfffffffffffffff8;// + (current_request_offset * `CELLS_NEEDED_B);
+      bus_reqtag <= `MEM_READ;
+      bus_reqcyc <= 1;
+      waiting <= 1;
+    end else if (instruction_miss) begin
       // Send an instruction read request
       bus_req <= instruction_address & 64'hfffffffffffffff8;// + (current_request_offset * `CELLS_NEEDED_B);
       bus_reqtag <= `MEM_READ;
@@ -210,7 +291,8 @@ module cache
 
   logic ready_to_insert;
   cache_cell [`CELLS_NEEDED - 1 : 0] response_cache_line_register;
-  cache_block [`WAYS - 1 : 0] instruction_way_insert_register; // 32 KB Instruction Cache
+  cache_block [`WAYS - 1 : 0] instruction_way_insert_register; // 32 KB Placeholder Instruction Cache
+  cache_block [`WAYS - 1 : 0] data_way_insert_register; // 32 KB Placeholder Data Cache
   always_ff @(posedge clk) begin
     if (response_added)
       current_request_offset += 1;
@@ -219,6 +301,7 @@ module cache
     response_cache_line_register <= 0;
     if (current_request_offset >= `CELLS_NEEDED) begin
       ready_to_insert <= 1;
+      data_way_insert_register = 0;
       instruction_way_insert_register = 0;
       response_cache_line_register <= response_cache_line;
     end
@@ -229,26 +312,39 @@ module cache
   // Insert into cache
   logic inserted;
   always_comb begin
-    logic [`ADDRESS_SIZE - 1 : 0] address = instruction_address_register & 64'hfffffffffffffff8;
     logic [`DATA_SIZE * `CELLS_NEEDED - 1 : 0] value = response_cache_line_register;
-    inserted = 0; if (ready_to_insert && instruction_read) begin
-      insert(address, value, instruction_way, instruction_way_insert_register);
+    Address instruction_insert_address, data_insert_address1, data_insert_address2;
+    inserted = 0; 
+
+    if (ready_to_insert && mem_read1) begin
+      data_insert_address1 = data_address1_register  & 64'hfffffffffffffff8;
+      insert(data_insert_address1, value, data_way, data_way_insert_register);
+    end else if (ready_to_insert && mem_read2) begin
+      data_insert_address2 = data_address2_register  & 64'hfffffffffffffff8;
+      insert(data_insert_address2, value, data_way, data_way_insert_register);
+      inserted = 1;
+    end else if (ready_to_insert && instruction_read) begin
+      instruction_insert_address = instruction_address_register & 64'hfffffffffffffff8;
+      insert(instruction_insert_address, value, instruction_way, instruction_way_insert_register);
       inserted = 1;
     end
   end
 
   always_ff @(posedge clk) begin
-    if (inserted) begin
-      instruction_way = instruction_way_insert_register;
+    if (inserted && (mem_read1 || mem_read2)) begin
+      data_way <= data_way_insert_register;
+      inserting <= 0;
+    end else if (inserted && instruction_read) begin
+      instruction_way <= instruction_way_insert_register;
       inserting <= 0;
     end
   end
 
-  /******************* STEP 5 **************************/
+  /******************* STEP 5 **************************
   // Return to processor
   always_ff @(posedge clk) begin : return_to_processor
     if (!busy) begin
   //    instruction_response <= instruction_response_register[`INSTRUCTION_SIZE - 1 : 0];
     end
-  end
+  end*/
 endmodule
