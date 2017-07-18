@@ -5,13 +5,16 @@ module dispatcher
 
   // The tag that will be associated with this entry
   input int rob_tail,
+  input int lsq_tail,
   input int rob_count,
+  input int lsq_count,
   input logic frontend_stall,
  
   // Needed for assigning values an tags
   input map_table_entry map_table[`NUMBER_OF_REGISTERS - 1 : 0],
-  input rob_entry rob[`ROB_SIZE-1:0],
-  input rs_entry res_stations[`RS_SIZE-1:0],
+  input rob_entry rob[`ROB_SIZE - 1 : 0],
+  input lsq_entry lsq[`LSQ_SIZE - 1 : 0],
+  input rs_entry res_stations[`RS_SIZE - 1 : 0],
   input registers_dispatch_register regs_dis_reg,
 
   // CDB Inputs
@@ -27,7 +30,9 @@ module dispatcher
   output int station_id,
   output logic bypass_rs, // Should I skip the Reservation stations??
   output logic rob_full,
-  output logic rob_increment // Will we need to insert into rob
+  output logic rob_increment, // Will we need to insert into rob
+  output logic lsq_full,
+  output logic lsq_increment
 );
   
   task assign_tag_value;
@@ -204,14 +209,29 @@ module dispatcher
 
     // Prep for loads
     if (ctrl_bits.memtoreg) begin
+      le.tag = rob_tail;
       le.category = LOAD;
       le.memory_type = ctrl_bits.memory_type;
+      le.color = lsq[lsq_tail - 1].color;
     end
 
     // Prep for stores
     if (ctrl_bits.memwr) begin
+      le.tag = rob_tail;
       le.category = STORE;
       le.memory_type = ctrl_bits.memory_type;
+      le.color = lsq[lsq_tail - 1].color + 1;
+    end
+
+
+    lsq_increment = 0;
+    if ((ctrl_bits.memwr || ctrl_bits.memtoreg) && !frontend_stall) begin
+      lsq_increment = 1;
+    end
+
+    lsq_full = 0;
+    if (lsq_count >= `LSQ_SIZE) begin
+      lsq_full = 1;
     end
   end
 endmodule

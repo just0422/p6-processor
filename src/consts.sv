@@ -40,6 +40,10 @@
 `define CONTROL_BITS_SIZE           $bits(control_bits)
 
 
+// Used in cache insert to break up response
+typedef logic [1:0][`WORD - 1 : 0]                                    WordMemory;
+typedef logic [3:0][`HALF - 1 : 0]                                    HalfMemory;
+typedef logic [7:0][`BYTE - 1 : 0]                                    ByteMemory;
 
 typedef logic [`ADDRESS_SIZE - 1 : 0]                                 Address;
 typedef logic [`CELLS_NEEDED * 2 - 1 : 0][`INSTRUCTION_SIZE - 1 : 0]  InstructionLine;
@@ -47,6 +51,7 @@ typedef logic [`CELLS_NEEDED - 1 : 0][`DOUBLE - 1 : 0]                DoubleLine
 typedef logic [`CELLS_NEEDED * 2 - 1 : 0][`WORD - 1 : 0]              WordLine;
 typedef logic [`CELLS_NEEDED * 4 - 1 : 0][`HALF - 1 : 0]              HalfLine;
 typedef logic [`CELLS_NEEDED * 8 - 1 : 0][`BYTE - 1 : 0]              ByteLine;
+
 // OFFSET bits will alawys be a multiple of 4
 // TAG SIZE + INDEX + OFFSET
 //   53         5       6
@@ -135,6 +140,7 @@ typedef logic [`DATA_SIZE / 2 - 1 : 0]          HalfWord;
 typedef logic [`INSTRUCTION_SIZE - 1 : 0]       InstructionWord;
 typedef logic [`NUMBER_OF_REGISTERS_B - 1 : 0]  Register;
 typedef logic [`IMMEDIATE_SIZE - 1 : 0]         Immediate;
+
 
 /////////////////////////////////////////////////////////////////////////////////
 /********************************** REGISTERS **********************************/
@@ -230,11 +236,13 @@ typedef struct packed {
 
 // Load/Story Queue Entry
 typedef struct packed {
+  logic ready;
+  int tag;
+  Address address;
+  longint color;
+  MemoryWord value;
   memory_instruction_category category;
   memory_instruction_type memory_type;
-  int tag;
-  logic [`ADDRESS_SIZE - 1 : 0] address;
-  MemoryWord value;
 } lsq_entry;
 
 typedef struct packed {

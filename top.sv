@@ -9,6 +9,8 @@
 `include "src/dispatcher.sv"
 `include "src/hazard_detection.sv"
 `include "src/issue.sv"
+`include "src/lsq.sv"
+`include "src/memory.sv"
 `include "src/register_file.sv"
 `include "src/retire.sv"
 
@@ -54,6 +56,10 @@ module top
       rob[i] = 0;
       rob[i].tag = i + 1;
     end
+
+    for (int i = 0; i < `LSQ_SIZE; i++) begin
+      lsq[i] = 0;
+    end
     
     for (int i = 0; i < `RS_SIZE; i++) begin
       res_stations[i] = 0;
@@ -64,8 +70,11 @@ module top
       register_file[i] = 0;
     end
 
-    rob_tail = 1;
     rob_head = 1;
+    rob_tail = 1;
+
+    lsq_head = 1;
+    lsq_tail = 1;
 
     register_file[2] = stackptr;
   end
@@ -233,6 +242,10 @@ module top
   int rob_count;
   int res_station_id;
 
+  logic lsq_increment, lsq_decrement, lsq_full;
+  int lsq_head, lsq_tail;
+  int lsq_count;
+
   cdb cdb1, cdb2;
 
   map_table_entry map_table [`NUMBER_OF_REGISTERS - 1 : 0];   // MAP TABLE
@@ -252,11 +265,14 @@ module top
 
     // The tag that will be associated with this entry
     .rob_tail(rob_tail),
+    .lsq_tail(lsq_tail),
     .rob_count(rob_count),
+    .lsq_count(lsq_count),
     .frontend_stall(frontend_stall),
   
     // Need to read from the hardware structures
     .rob(rob),
+    .lsq(lsq),
     .map_table(map_table),
     .res_stations(res_stations),
     .regs_dis_reg(regs_dis_reg),
@@ -279,6 +295,7 @@ module top
 
   always_ff @(posedge clk) begin
     int rob_tag;
+    dis_le <= 0;
     if (!frontend_stall) begin
       // add to the rob
       if (dispatch_re) begin
@@ -292,21 +309,28 @@ module top
 
       end
 
-      res_stations[res_station_id] <= dispatch_rse;
-      res_stations[res_station_id].id <= res_station_id + 1;
+      if (dispatch_rse) begin
+        res_stations[res_station_id] <= dispatch_rse;
+        res_stations[res_station_id].id <= res_station_id + 1;
+      end
 
       if (dispatch_mte) begin
         map_table[dispatch_re.rd] <= dispatch_mte;
       end
+      
+      if (dispatch_le) begin
+        dis_le <= dispatch_le;
+        /*lsq[lsq_tail - 1] = dispatch_le;
 
-      // TODO: Add to the LSQ.....
-
-      // TODO: Perfect ROB/LSQ head/tail logic
-
-      // TODO: Make sure that the ROB entry isn't set before first instruction arrives
+        lsq_tail <= lsq_tail % `LSQ_SIZE + 1;
+        if(lsq_increment ^ lsq_decrement && lsq_increment)
+          lsq_count <= lsq_count + 1;*/
+      end
     end
   end
 
+
+  ///////////////////// DATA CAPTURE ///////////////////
   task capture_data;
     input cdb cdbx;
     begin
@@ -387,15 +411,70 @@ module top
   execute_memory_register exe_mem_reg_2;
   /***************************** MEMORY *******************************/
   MemoryWord memory_data1;
-  always_comb begin
-    memory_data1 = exe_mem_reg_1.result;
-  end
+  int lsq_pointer;
+  lsq_entry memory_le;
+  memory memory(
+    // Housekeeping
+    .clk(clk), .reset(reset),
+
+    // Inputs
+    .ctrl_bits(exe_mem_reg_1.ctrl_bits),
+    .address(exe_mem_reg_1.result),
+    .data(exe_mem_reg_1.data),
+    .tag(exe_mem_reg_1.tag),
+
+    // Outputs
+    .result1(memory_data1),
+    .lsq_pointer(lsq_pointer),
+    .le(memory_le)
+  );
+  //always_comb begin
+  //  memory_data1 = exe_mem_reg_1.result;
+  //end
 
   always_ff @(posedge clk) begin
-    if (!backend_stall)
+    mem_index = 0;
+    mem_le = 0;
+    if (!backend_stall) begin
+
       mem_com_reg_1 <= { exe_mem_reg_1.tag, memory_data1, 
                          exe_mem_reg_1.ctrl_bits };
+
+      mem_index = lsq_pointer;
+      mem_le = memory_le;
+    end
   end
+
+  ///////////////// LSQ MANAGEMENT ////////////////
+  lsq_entry lsq_register[`LSQ_SIZE - 1 : 0];
+  lsq_entry mem_le, dis_le;
+  int mem_index;
+  int lsq_tail_register, lsq_head_register, lsq_count_register;
+  load_store_queue load_store_queue(
+    // Housekeeping
+    .clk(clk), .reset(reset),
+
+    // inputs
+    .lsq_tail(lsq_tail), .lsq_count(lsq_count),
+    .lsq_increment(lsq_increment), .lsq_decrement(lsq_decrement),
+    .dispatch_le(dis_le),
+    .memory_le1(mem_le), .mem_index1(mem_index),
+    .lsq(lsq),
+
+    // Outputs
+    .lsq_register(lsq_register),
+    .lsq_tail_register(lsq_tail_register),
+    .lsq_head_register(lsq_head_register),
+    .lsq_count_register(lsq_count_register)
+  );
+  
+  always_ff @(posedge clk) begin
+    lsq <= lsq_register;
+    lsq_tail <= lsq_tail_register;
+    lsq_head <= lsq_head_register;
+    lsq_count <= lsq_count_register;
+  end
+
 
   memory_commit_register mem_com_reg_1;
   memory_commit_register mem_com_reg_2;

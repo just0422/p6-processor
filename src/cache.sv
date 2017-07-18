@@ -86,12 +86,12 @@ module cache
 
           // value = _____[ca.offset]
           case(memory_type)
-            LD : value = double_cells[ca.offset];
-            LW : value = { { 32 { word_cells[ca.offset][31] } }, word_cells[ca.offset] };
-            LH : value = { { 48 { half_cells[ca.offset][15] } }, half_cells[ca.offset] };
+            LD : value = double_cells[ca.offset >> 3];
+            LW : value = { { 32 { word_cells[ca.offset][31] } }, word_cells[ca.offset >> 2] };
+            LH : value = { { 48 { half_cells[ca.offset][15] } }, half_cells[ca.offset >> 1] };
             LB : value = { { 56 {  byte_cells[ca.offset][7] } }, byte_cells[ca.offset] };
-            LWU: value = word_cells[ca.offset] & 32'hFFFFFFFF;
-            LHU: value = half_cells[ca.offset] & 16'hFFFF;
+            LWU: value = word_cells[ca.offset >> 2] & 32'hFFFFFFFF;
+            LHU: value = half_cells[ca.offset >> 1] & 16'hFFFF;
             LBU: value = half_cells[ca.offset] &  8'hFF;
           endcase
         end
@@ -156,7 +156,7 @@ module cache
       cache_block cb = fc_in[way];  // Get block 'dcb' at way[i]
       cache_line cl = cb[ca.index]; // Get cache line 'dcl' dcb[index]
 
-      if (cl.dirty) begin
+      if (cl.dirty && ca.tag != cl.tag) begin
         evict(cl.tag, ca.index, cl.cache_cells);
       end
 
@@ -179,14 +179,42 @@ module cache
     end
   endtask
 
-  /*task insert_data;
+  task insert_data;
     input Address address;
     input MemoryWord value;
-    input full_cache fc_in;
+    input memory_instruction_type memory_type;
+    output data_busy;
+    output data_miss;
+    output full_cache data_way_register;
+    begin
+      logic insert_data_busy;
+      WordMemory words;
+      HalfMemory halfs;
+      ByteMemory bytes;
+      MemoryWord response = 0;
+      cache_address ca = address;
+
+      read_data(address, LD, data_way, insert_data_busy, data_miss, response);
+      words = (response & 32'hFFFFFFFF << ((!ca.offset >> 2) * 32)) | (value << ((ca.offset >> 2) * 32));
+      halfs = (response & 16'hFFFF     << ((!ca.offset >> 3) * 16)) | (value << ((ca.offset >> 3) * 16));
+      bytes = (response &  8'hFF       << ((!ca.offset >> 4) *  8)) | (value << ((ca.offset >> 4) *  8));
+
+      if (!insert_data_busy && response) begin
+        case(memory_type)
+          SD: insert(address, value, data_way, data_way_register);
+          SW: insert(address, words, data_way, data_way_register);
+          SH: insert(address, halfs, data_way, data_way_register);
+          SB: insert(address, bytes, data_way, data_way_register);
+        endcase
+        data_busy = 0;
+      end
+    end
+  endtask
 
   /******************* STEP 1 *************************/
   // Find in cache or prep for emory request
   MemoryWord instruction_response_register;
+  full_cache data_way_reg;
   always_comb begin : cache_or_mem
     if (!reset) begin
       data_busy1 = 1;
@@ -195,8 +223,9 @@ module cache
 
       if (mem_write1) begin
         // Write to cache
-        //insert_data();
+        insert_data(data_address1, data_write1, memory_type1, data_busy1, data_miss1, data_way_reg);
       end else if (mem_write2) begin
+        insert_data(data_address2, data_write2, memory_type2, data_busy2, data_miss2, data_way_reg);
         //insert_data();
       end else if (mem_read1) begin
         // Send a data read request
@@ -210,6 +239,11 @@ module cache
         instruction_response = instruction_response_register[`INSTRUCTION_SIZE - 1 : 0];
      end
     end
+  end
+
+  always_ff @(posedge clk) begin
+    if ((mem_write1 && !data_busy1) || (mem_write2 && !data_busy2))
+      data_way <= data_way_reg;
   end
 
   /******************* STEP 2a **************************/
