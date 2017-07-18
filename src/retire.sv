@@ -3,6 +3,7 @@ module retire (
   input clk, reset,
 
   input rob_entry rob_head,
+  input lsq_entry lsq_head,
 
   output regwr,
   output Register rd,
@@ -10,8 +11,10 @@ module retire (
 
   output map_table_entry mte,
   output rob_entry re,
+  output lsq_entry le,
 
-  output rob_decrement
+  output rob_decrement,
+  output lsq_decrement
 );
 
   always_comb begin
@@ -21,6 +24,9 @@ module retire (
     mte  = 0;
     rob_decrement = 0;
 
+    le = 0;
+    lsq_decrement = 0;
+
     if (rob_head.ready) begin
       rd = rob_head.rd;
       value = rob_head.value;
@@ -28,8 +34,12 @@ module retire (
 
       rob_decrement = 1;
       re = rob_head;
-    end
 
+      if (rob_head.tag == lsq_head.tag) begin
+        le = lsq_head;
+        lsq_decrement = 1;
+      end
+    end
   end
 
 endmodule

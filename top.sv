@@ -290,7 +290,9 @@ module top
     .station_id(res_station_id),
     .bypass_rs(bypass_rs),
     .rob_full(rob_full),
-    .rob_increment(rob_increment) // Does an instruction need to be inserted into the rob;
+    .rob_increment(rob_increment), // Does an instruction need to be inserted into the rob;
+    .lsq_full(lsq_full),
+    .lsq_increment(lsq_increment)
   );
 
   always_ff @(posedge clk) begin
@@ -320,6 +322,7 @@ module top
       
       if (dispatch_le) begin
         dis_le <= dispatch_le;
+        lsq_inc <= lsq_increment;
         /*lsq[lsq_tail - 1] = dispatch_le;
 
         lsq_tail <= lsq_tail % `LSQ_SIZE + 1;
@@ -446,8 +449,14 @@ module top
   end
 
   ///////////////// LSQ MANAGEMENT ////////////////
+  // WE NEED ALL THESE REGISTERS BECAUSE THE LSQ IS DELAYED 1 CYCLE
+  //    Why you may ask? Because we need to edit the LSQ in multiple places
+  //        Dispatch
+  //        Memory
+  //    That's not allowed
   lsq_entry lsq_register[`LSQ_SIZE - 1 : 0];
   lsq_entry mem_le, dis_le;
+  logic lsq_inc, lsq_dec;
   int mem_index;
   int lsq_tail_register, lsq_head_register, lsq_count_register;
   load_store_queue load_store_queue(
@@ -455,8 +464,9 @@ module top
     .clk(clk), .reset(reset),
 
     // inputs
-    .lsq_tail(lsq_tail), .lsq_count(lsq_count),
-    .lsq_increment(lsq_increment), .lsq_decrement(lsq_decrement),
+    .lsq_tail(lsq_tail), .lsq_head(lsq_head), .lsq_count(lsq_count), 
+    .lsq_increment(lsq_inc), .lsq_decrement(lsq_dec),
+
     .dispatch_le(dis_le),
     .memory_le1(mem_le), .mem_index1(mem_index),
     .lsq(lsq),
@@ -523,6 +533,7 @@ module top
   Register retire_rd;
   MemoryWord retire_value;
   rob_entry retire_re;
+  lsq_entry retire_le;
   map_table_entry retire_mte;
   
   retire retire(
@@ -530,14 +541,17 @@ module top
     .clk(clk), .reset(reset),
 
     .rob_head(rob[rob_head - 1]),
+    .lsq_head(lsq[lsq_head - 1]),
     
     // Outputs
     .rd(retire_rd), .value(retire_value),
     .mte(retire_mte),
     .re(retire_re),
+    .le(retire_le),
     .regwr(retire_regwr),
 
-    .rob_decrement(rob_decrement)
+    .rob_decrement(rob_decrement),
+    .lsq_decrement(lsq_decrement)
   );
  
   Register write_rd;
@@ -569,6 +583,10 @@ module top
       rob_head <= rob_head % `ROB_SIZE + 1;
       if (rob_increment ^ rob_decrement && rob_decrement)
         rob_count <= rob_count - 1;
+
+      if (retire_re.tag == retire_le.tag) begin
+        lsq_dec = lsq_decrement;
+      end
 
     end
   end

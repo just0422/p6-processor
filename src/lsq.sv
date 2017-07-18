@@ -19,7 +19,7 @@ module load_store_queue (
 
     if (dispatch_le) begin
       lsq_register[lsq_tail_register - 1] = dispatch_le;
-      lsq_tail_register = lsq_tail & `LSQ_SIZE + 1;
+      lsq_tail_register = lsq_tail % `LSQ_SIZE + 1;
 
       if(lsq_increment ^ lsq_decrement && lsq_increment)
         lsq_count_register = lsq_count + 1;
@@ -27,6 +27,17 @@ module load_store_queue (
 
     if (memory_le1) begin
       lsq_register[mem_index1 - 1] = memory_le1;
+    end
+  end
+
+  always_comb begin
+    if (lsq_decrement) begin
+      lsq_register[lsq_head - 1] = 0;
+
+      lsq_head_register = lsq_head % `LSQ_SIZE + 1;
+
+      if(lsq_increment ^ lsq_decrement && lsq_decrement)
+        lsq_count_register = lsq_count - 1;
     end
   end
 endmodule
