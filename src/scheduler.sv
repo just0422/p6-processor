@@ -1,4 +1,4 @@
-module dispatcher
+module scheduler
 (
   input clk,
   input reset,
@@ -205,6 +205,7 @@ module dispatcher
   // Create LSQ Entries
   always_comb begin
     control_bits ctrl_bits = regs_dis_reg.ctrl_bits;
+    int previous_le = lsq_tail > 1 ? lsq_tail - 2 : `LSQ_SIZE - 1;
     le = 0;
 
     // Prep for loads
@@ -212,7 +213,7 @@ module dispatcher
       le.tag = rob_tail;
       le.category = LOAD;
       le.memory_type = ctrl_bits.memory_type;
-      le.color = lsq[lsq_tail - 1].color;
+      le.color = lsq[previous_le].color;
     end
 
     // Prep for stores
@@ -220,9 +221,9 @@ module dispatcher
       le.tag = rob_tail;
       le.category = STORE;
       le.memory_type = ctrl_bits.memory_type;
-      le.color = lsq[lsq_tail - 1].color + 1;
+      le.color = lsq[previous_le].color + 1;
+      $display("Comb : \tTail - %1d \tLSQ Color - %1d \tLE Color - %1d", lsq_tail, lsq[previous_le].color, le.color);
     end
-
 
     lsq_increment = 0;
     if ((ctrl_bits.memwr || ctrl_bits.memtoreg) && !frontend_stall) begin

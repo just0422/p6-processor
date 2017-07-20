@@ -238,8 +238,8 @@ typedef struct packed {
 typedef struct packed {
   logic ready;
   int tag;
-  Address address;
   longint color;
+  Address address;
   MemoryWord value;
   memory_instruction_category category;
   memory_instruction_type memory_type;

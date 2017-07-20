@@ -6,13 +6,13 @@
 `include "src/cache.sv"
 `include "src/commit.sv"
 `include "src/decoder.sv"
-`include "src/dispatcher.sv"
 `include "src/hazard_detection.sv"
 `include "src/issue.sv"
 `include "src/lsq.sv"
 `include "src/memory.sv"
 `include "src/register_file.sv"
 `include "src/retire.sv"
+`include "src/scheduler.sv"
 
 module top
 #(
@@ -259,7 +259,7 @@ module top
   rob_entry       dispatch_re;
   lsq_entry       dispatch_le;
 
-  dispatcher dispatch(
+  scheduler schedule(
     // Housekeeping
     .clk(clk), .reset(reset),
 
@@ -297,8 +297,8 @@ module top
 
   always_ff @(posedge clk) begin
     int rob_tag;
-    dis_le <= 0;
-    lsq_inc <= 0;
+    //dis_le <= 0;
+    //lsq_inc <= 0;
     if (!frontend_stall) begin
       // add to the rob
       if (dispatch_re) begin
@@ -322,14 +322,23 @@ module top
       end
       
       if (dispatch_le) begin
-        dis_le <= dispatch_le;
-        lsq_inc <= lsq_increment;
-        /*lsq[lsq_tail - 1] = dispatch_le;
+        //dis_le <= dispatch_le;
+        //lsq_inc <= lsq_increment;
+        lsq[lsq_tail - 1] <= dispatch_le;
+        //lsq[0].color <= 1;
+        //lsq[1].color <= 2;
+        //lsq[2].color <= 12;
+        //lsq[3].color <= 13;
+        //lsq[lsq_tail - 1].color <= 10;
+        $display(" FF  : \tTail - %1d \tLSQ Color - %1d \tLE Color - %1d", lsq_tail, lsq[lsq_tail - 1].color, dispatch_le.color);
 
         lsq_tail <= lsq_tail % `LSQ_SIZE + 1;
         if(lsq_increment ^ lsq_decrement && lsq_increment)
-          lsq_count <= lsq_count + 1;*/
+          lsq_count <= lsq_count + 1;
       end
+
+      if (memory_le) 
+        lsq[memory_le_index - 1] <= memory_le;
     end
   end
 
@@ -415,7 +424,7 @@ module top
   execute_memory_register exe_mem_reg_2;
   /***************************** MEMORY *******************************/
   MemoryWord memory_data1;
-  int lsq_pointer;
+  int memory_le_index;
   lsq_entry memory_le;
   memory memory(
     // Housekeeping
@@ -429,7 +438,7 @@ module top
 
     // Outputs
     .result1(memory_data1),
-    .lsq_pointer(lsq_pointer),
+    .lsq_pointer(memory_le_index),
     .le(memory_le)
   );
   //always_comb begin
@@ -437,15 +446,15 @@ module top
   //end
 
   always_ff @(posedge clk) begin
-    mem_index = 0;
-    mem_le = 0;
+    //mem_index = 0;
+    //mem_le = 0;
     if (!backend_stall) begin
 
       mem_com_reg_1 <= { exe_mem_reg_1.tag, memory_data1, 
                          exe_mem_reg_1.ctrl_bits };
 
-      mem_index = lsq_pointer;
-      mem_le = memory_le;
+      //mem_index = lsq_pointer;
+      //mem_le = memory_le;
     end
   end
 
@@ -455,6 +464,7 @@ module top
   //        Dispatch
   //        Memory
   //    That's not allowed
+  /*
   lsq_entry lsq_register[`LSQ_SIZE - 1 : 0];
   lsq_entry mem_le, dis_le;
   logic lsq_inc, lsq_dec;
@@ -484,7 +494,7 @@ module top
     lsq_tail <= lsq_tail_register;
     lsq_head <= lsq_head_register;
     lsq_count <= lsq_count_register;
-  end
+  end*/
 
 
   memory_commit_register mem_com_reg_1;
@@ -559,7 +569,7 @@ module top
   MemoryWord write_data;
   logic write_regwr;
   always_ff @(posedge clk) begin
-    lsq_dec <= 0;
+    //lsq_dec <= 0;
     write_rd <= 0;
     write_data <= 0;
     write_regwr <= 0;
@@ -586,10 +596,18 @@ module top
       if (rob_increment ^ rob_decrement && rob_decrement)
         rob_count <= rob_count - 1;
 
-      if (retire_re.tag == retire_le.tag) begin
-        lsq_dec <= lsq_decrement;
-      end
+      //if (retire_re.tag == retire_le.tag) begin
+      //  lsq_dec <= lsq_decrement;
+      //end
+      
+      if (lsq_decrement) begin
+        lsq[lsq_head - 1] <= 0;
 
+        lsq_head <= lsq_head % `LSQ_SIZE + 1;
+
+        if(lsq_increment ^ lsq_decrement && lsq_decrement)
+          lsq_count <= lsq_count - 1;
+      end
     end
   end
    
