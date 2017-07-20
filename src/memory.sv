@@ -17,7 +17,8 @@ module memory
   output MemoryWord result1,
 
   output int lsq_pointer,
-  output lsq_entry le
+  output lsq_entry le,
+  output lsq_entry lsq_register[`LSQ_SIZE - 1 : 0]
 );
   always_comb begin
     if (!(ctrl_bits.memwr || ctrl_bits.memtoreg))
@@ -28,17 +29,29 @@ module memory
     int current_color;
     lsq_pointer = 0;
     le = 0;
+    lsq_register = lsq;
 
     if(ctrl_bits.memwr) begin
       for (int i = 0; i < `LSQ_SIZE; i++) begin
         if (lsq[i].tag == tag) begin
-          lsq_pointer= i + 1;  // Let's try to keep the array 1-index
+          lsq_pointer = i + 1;  // Let's try to keep the array 1-index
 
           le.tag = tag;
           le.address = address;
           le.value = data;
           le.color = lsq[i].color;
+          
+          for (int j = 0; j < `LSQ_SIZE; j++) begin
+            if (lsq[j].address == address &&
+                lsq[j].category == LOAD &&
+                lsq[j].color > lsq[i].color) begin
+                  lsq_register[j].value = lsq[i].value;
+            end
+          end
         end
+      end
+
+      if (lsq_pointer > 0) begin
       end
     end
     
@@ -58,6 +71,7 @@ module memory
             current_color = -1;
             for (int j = 0; j < `LSQ_SIZE; j++) begin
               if (lsq[j].address == address &&
+                  lsq[j].category == STORE &&
                   lsq[j].color > current_color &&
                   lsq[j].color < lsq[i].color) begin
                 current_color = lsq[j].color;

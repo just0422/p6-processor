@@ -297,6 +297,10 @@ module top
 
   always_ff @(posedge clk) begin
     int rob_tag;
+
+    if (!backend_stall) begin
+      lsq <= lsq_register;
+    end
     //dis_le <= 0;
     //lsq_inc <= 0;
     if (!frontend_stall) begin
@@ -423,6 +427,7 @@ module top
   execute_memory_register exe_mem_reg_1;
   execute_memory_register exe_mem_reg_2;
   /***************************** MEMORY *******************************/
+  lsq_entry lsq_register[`LSQ_SIZE - 1 : 0];
   MemoryWord memory_data1;
   int memory_le_index;
   lsq_entry memory_le;
@@ -442,7 +447,9 @@ module top
     // Outputs
     .result1(memory_data1),
     .lsq_pointer(memory_le_index),
-    .le(memory_le)
+    .le(memory_le),
+
+    .lsq_register(lsq_register)
   );
   //always_comb begin
   //  memory_data1 = exe_mem_reg_1.result;
