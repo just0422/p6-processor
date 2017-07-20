@@ -330,7 +330,6 @@ module top
         //lsq[2].color <= 12;
         //lsq[3].color <= 13;
         //lsq[lsq_tail - 1].color <= 10;
-        $display(" FF  : \tTail - %1d \tLSQ Color - %1d \tLE Color - %1d", lsq_tail, lsq[lsq_tail - 1].color, dispatch_le.color);
 
         lsq_tail <= lsq_tail % `LSQ_SIZE + 1;
         if(lsq_increment ^ lsq_decrement && lsq_increment)
@@ -431,6 +430,9 @@ module top
     .clk(clk), .reset(reset),
 
     // Inputs
+    .lsq(lsq),
+    .lsq_tail(lsq_tail),
+
     .ctrl_bits(exe_mem_reg_1.ctrl_bits),
     .address(exe_mem_reg_1.result),
     .data(exe_mem_reg_1.data),

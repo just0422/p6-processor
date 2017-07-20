@@ -222,7 +222,6 @@ module scheduler
       le.category = STORE;
       le.memory_type = ctrl_bits.memory_type;
       le.color = lsq[previous_le].color + 1;
-      $display("Comb : \tTail - %1d \tLSQ Color - %1d \tLE Color - %1d", lsq_tail, lsq[previous_le].color, le.color);
     end
 
     lsq_increment = 0;

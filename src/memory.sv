@@ -25,29 +25,26 @@ module memory
   end
 
   always_comb begin
+    int current_color;
     lsq_pointer = 0;
     le = 0;
 
     if(ctrl_bits.memwr) begin
       for (int i = 0; i < `LSQ_SIZE; i++) begin
+        $display("Tag - %1d\tLSQ Tag - %1d\t== - %1d", tag, lsq[i].tag, lsq[i].tag == tag);
         if (lsq[i].tag == tag) begin
           lsq_pointer= i + 1;  // Let's try to keep the array 1-index
 
+          $display("Before LE - %x", le);
           le.tag = tag;
           le.address = address;
           le.value = data;
           le.color = lsq[i].color;
-          break;
+          $display("After LE - %x", le);
         end
       end
     end
-  end
-
-  always_comb begin
-    int current_color;
-    lsq_pointer = 0;
-    le = 0;
-
+    
     if (ctrl_bits.memtoreg) begin
       // Find LSQ Entry
       for (int i = 0; i < `LSQ_SIZE; i++) begin
