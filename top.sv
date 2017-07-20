@@ -298,6 +298,7 @@ module top
   always_ff @(posedge clk) begin
     int rob_tag;
     dis_le <= 0;
+    lsq_inc <= 0;
     if (!frontend_stall) begin
       // add to the rob
       if (dispatch_re) begin
@@ -558,6 +559,7 @@ module top
   MemoryWord write_data;
   logic write_regwr;
   always_ff @(posedge clk) begin
+    lsq_dec <= 0;
     write_rd <= 0;
     write_data <= 0;
     write_regwr <= 0;
@@ -585,7 +587,7 @@ module top
         rob_count <= rob_count - 1;
 
       if (retire_re.tag == retire_le.tag) begin
-        lsq_dec = lsq_decrement;
+        lsq_dec <= lsq_decrement;
       end
 
     end
