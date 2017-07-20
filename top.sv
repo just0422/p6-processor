@@ -335,10 +335,11 @@ module top
         if(lsq_increment ^ lsq_decrement && lsq_increment)
           lsq_count <= lsq_count + 1;
       end
-
-      if (memory_le) 
-        lsq[memory_le_index - 1] <= memory_le;
     end
+
+
+    if (memory_le && !backend_stall) 
+      lsq[memory_le_index - 1] <= memory_le;
   end
 
 
