@@ -10,16 +10,20 @@ module hazard_detection
   // Hardware Inputs
   input rob_full,
 
-  // Outputs
-  output frontend_stall, backend_stall,
-  output rob_increment, rob_decrement
+  // Output
+  output fetch_stall, frontend_stall, backend_stall
 );
 
   //always_ff @(posedge clk) begin
   always_comb begin
+    fetch_stall = reset;
+
+    fetch_stall |= (busy || overwrite_pc || !instruction);
+    fetch_stall |= rob_full;
+  end
+  always_comb begin
     frontend_stall = reset;
 
-    frontend_stall |= (busy || overwrite_pc || !instruction);
     frontend_stall |= rob_full;
   end
 

@@ -87,7 +87,7 @@ module top
     end
 
   /************************** HAZARD DETECTION *****************************/
-  logic frontend_stall, backend_stall;
+  logic frontend_stall, backend_stall, fetch_stall;
   hazard_detection hazards(
     // Housekeeping
     .clk(clk), .reset(reset),
@@ -101,7 +101,7 @@ module top
     // Output
     .backend_stall(backend_stall), // Stall when 1
     .frontend_stall(frontend_stall), // Stall when 1
-    .rob_increment(rob_increment), // Basicall !frontend_stall
+    .fetch_stall(fetch_stall)
   );
 
 
@@ -143,11 +143,10 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    cac_bp_reg <= 0;
-    if (!frontend_stall) begin
+    //cac_bp_reg <= 0;
+    if (!fetch_stall) begin
       cac_bp_reg <= { instruction_response, pc };
       pc <= pc + 4;
-      $display("%d - Hello World!  @ %x - %x", x, pc, instruction_response);
     end
   end
 
@@ -173,7 +172,8 @@ module top
 
   // Assign next PC value 
   always_ff @(posedge clk) begin
-    fet_dec_reg <= cac_bp_reg;
+    if (!frontend_stall) 
+      fet_dec_reg <= cac_bp_reg;
   end
   
   fetch_decode_register fet_dec_reg;
@@ -197,10 +197,11 @@ module top
   );
 
   always_ff @(posedge clk) begin
-     dec_regs_reg <= {fet_dec_reg.instruction,
-                      fet_dec_reg.pc, 
-                      decode_rs1, decode_rs2, decode_rd, decode_imm, 
-                      decode_ctrl_bits};
+    if (!frontend_stall)
+      dec_regs_reg <= {fet_dec_reg.instruction,
+                       fet_dec_reg.pc, 
+                       decode_rs1, decode_rs2, decode_rd, decode_imm, 
+                       decode_ctrl_bits};
   end
   
   decode_registers_register dec_regs_reg;
@@ -227,10 +228,11 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    regs_dis_reg <= { dec_regs_reg.instruction, dec_regs_reg.pc,
-                      dec_regs_reg.rs1, dec_regs_reg.rs2, dec_regs_reg.rd, 
-                      rs1_value, rs2_value, dec_regs_reg.imm,
-                      dec_regs_reg.ctrl_bits };
+    if (!frontend_stall)
+      regs_dis_reg <= { dec_regs_reg.instruction, dec_regs_reg.pc,
+                        dec_regs_reg.rs1, dec_regs_reg.rs2, dec_regs_reg.rd, 
+                        rs1_value, rs2_value, dec_regs_reg.imm,
+                        dec_regs_reg.ctrl_bits };
   end
 
   registers_dispatch_register regs_dis_reg;
@@ -291,9 +293,7 @@ module top
     .rob_full(rob_full),
     .rob_increment(rob_increment), // Does an instruction need to be inserted into the rob;
     .lsq_full(lsq_full),
-    .lsq_increment(lsq_increment),
-
-    .nop(nop)
+    .lsq_increment(lsq_increment)
   );
 
   always_ff @(posedge clk) begin
@@ -304,9 +304,10 @@ module top
     end
     //dis_le <= 0;
     //lsq_inc <= 0;
-    if (!nop) begin
+    if (!frontend_stall) begin
       // add to the rob
       if (dispatch_re) begin
+        $display("%d - Hello World!  @ %x - %x", x, regs_dis_reg.pc, regs_dis_reg.instruction);
         rob_tag = rob[rob_tail - 1].tag;
         rob[rob_tail - 1] <= dispatch_re;
         rob[rob_tail - 1].tag <= rob_tag;
