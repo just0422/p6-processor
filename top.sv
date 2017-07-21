@@ -143,6 +143,7 @@ module top
   );
 
   always_ff @(posedge clk) begin
+    cac_bp_reg <= 0;
     if (!frontend_stall) begin
       cac_bp_reg <= { instruction_response, pc };
       pc <= pc + 4;
@@ -172,8 +173,7 @@ module top
 
   // Assign next PC value 
   always_ff @(posedge clk) begin
-    if (!frontend_stall)
-      fet_dec_reg <= cac_bp_reg;
+    fet_dec_reg <= cac_bp_reg;
   end
   
   fetch_decode_register fet_dec_reg;
@@ -197,8 +197,7 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    if (!frontend_stall)
-      dec_regs_reg <= {fet_dec_reg.instruction,
+     dec_regs_reg <= {fet_dec_reg.instruction,
                       fet_dec_reg.pc, 
                       decode_rs1, decode_rs2, decode_rd, decode_imm, 
                       decode_ctrl_bits};
@@ -228,15 +227,15 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    if (!frontend_stall)
-      regs_dis_reg <= { dec_regs_reg.instruction, dec_regs_reg.pc,
-                       dec_regs_reg.rs1, dec_regs_reg.rs2, dec_regs_reg.rd, 
-                       rs1_value, rs2_value, dec_regs_reg.imm,
-                       dec_regs_reg.ctrl_bits };
-    end
+    regs_dis_reg <= { dec_regs_reg.instruction, dec_regs_reg.pc,
+                      dec_regs_reg.rs1, dec_regs_reg.rs2, dec_regs_reg.rd, 
+                      rs1_value, rs2_value, dec_regs_reg.imm,
+                      dec_regs_reg.ctrl_bits };
+  end
 
   registers_dispatch_register regs_dis_reg;
   /*********************** INSTRUCTION DISPATCH ***********************/
+  logic nop; // Did the front end stall??
   logic rob_increment, rob_decrement, rob_full;
   int rob_head, rob_tail;
   int rob_count;
@@ -292,7 +291,9 @@ module top
     .rob_full(rob_full),
     .rob_increment(rob_increment), // Does an instruction need to be inserted into the rob;
     .lsq_full(lsq_full),
-    .lsq_increment(lsq_increment)
+    .lsq_increment(lsq_increment),
+
+    .nop(nop)
   );
 
   always_ff @(posedge clk) begin
@@ -303,7 +304,7 @@ module top
     end
     //dis_le <= 0;
     //lsq_inc <= 0;
-    if (!frontend_stall) begin
+    if (!nop) begin
       // add to the rob
       if (dispatch_re) begin
         rob_tag = rob[rob_tail - 1].tag;

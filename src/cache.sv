@@ -102,7 +102,6 @@ module cache
   task read_instruction;
     input Address address;
     input full_cache fc_in;
-    output instruction_busy;
     output MemoryWord value;
     begin
       cache_address ca = address;
@@ -235,7 +234,7 @@ module cache
         read_data(data_address2, memory_type2, data_way, data_busy2, data_miss2, data_response2);
       end else if (instruction_read) begin// && !busy_register) begin
         // Check cache
-        read_instruction(instruction_address, instruction_way, instruction_busy, instruction_response_register);
+        read_instruction(instruction_address, instruction_way, instruction_response_register);
         instruction_response = instruction_response_register[`INSTRUCTION_SIZE - 1 : 0];
      end
     end

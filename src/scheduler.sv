@@ -32,8 +32,13 @@ module scheduler
   output logic rob_full,
   output logic rob_increment, // Will we need to insert into rob
   output logic lsq_full,
-  output logic lsq_increment
+  output logic lsq_increment,
+
+  output logic nop
 );
+
+  always_comb
+    nop = regs_dis_reg ? 0 : 1;
   
   task assign_tag_value;
     input Register register_source;
