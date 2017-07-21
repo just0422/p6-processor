@@ -326,6 +326,8 @@ module top
       if (dispatch_mte) begin
         map_table[dispatch_re.rd] <= dispatch_mte;
       end
+
+      lsq <= lsq_register;
       
       if (dispatch_le) begin
         //dis_le <= dispatch_le;

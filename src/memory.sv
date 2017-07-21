@@ -18,7 +18,15 @@ module memory
 
   output int lsq_pointer,
   output lsq_entry le,
-  output lsq_entry lsq_register[`LSQ_SIZE - 1 : 0]
+  output lsq_entry lsq_register[`LSQ_SIZE - 1 : 0],
+
+  // Cache interface
+  output                         mem_read1,      mem_read2,
+  output Address                 data_address1,  data_address2,
+  output memory_instruction_type memory_type1,   memory_type2,
+
+  input                          data_busy1,     data_busy2,
+  input MemoryWord               data_response1, data_response2
 );
   always_comb begin
     if (!(ctrl_bits.memwr || ctrl_bits.memtoreg))
