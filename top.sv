@@ -100,6 +100,10 @@ module top
     // Hardware hazards
     .rob_full(rob_full),
 
+    // Retire Hazards,
+    .rob(rob),
+    .rob_head(rob_head)
+
     // Output
     .backend_stall(backend_stall), // Stall when 1
     .frontend_stall(frontend_stall), // Stall when 1
