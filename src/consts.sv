@@ -249,3 +249,8 @@ typedef struct packed {
   int tag;
   MemoryWord value;
 } cdb;
+
+typedef struct packed {
+  Register regstr;
+  MemoryWord value;
+} Victim;

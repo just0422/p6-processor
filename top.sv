@@ -88,12 +88,14 @@ module top
 
   /************************** HAZARD DETECTION *****************************/
   logic frontend_stall, backend_stall, fetch_stall;
+  Victim victim;
   hazard_detection hazards(
     // Housekeeping
     .clk(clk), .reset(reset),
     
     // Cache hazards
     .busy(i_busy), .overwrite_pc(overwrite_pc), .instruction(instruction_response),
+    .data_busy1(data_busy1), .data_finished1(data_finished1), .data_missed1(data_missed1),
 
     // Hardware hazards
     .rob_full(rob_full),
@@ -101,7 +103,9 @@ module top
     // Output
     .backend_stall(backend_stall), // Stall when 1
     .frontend_stall(frontend_stall), // Stall when 1
-    .fetch_stall(fetch_stall)
+    .fetch_stall(fetch_stall),
+
+    .victim(victim)
   );
 
 
@@ -117,9 +121,14 @@ module top
   logic busy;
   
   logic [`DATA_SIZE-1:0] d_req_r, d_req_w, d_write, d_data;
-  logic mem_read, mem_write;
   logic [3:0] req_size_w, req_size_r;
   logic i_busy, d_busy, w_busy;
+
+  logic mem_read1, mem_write2;
+  Address data_address1;
+  memory_instruction_type memory_type1;
+  logic data_finished1;
+  MemoryWord data_response1;
 
   cache cache (
     // Housekeeping
@@ -133,13 +142,23 @@ module top
          
     .instruction_busy(i_busy),
     .data_busy1(d_busy),
+    .data_finished1(data_finished1),
     
     .instruction_read(instruction_read),
     .instruction_address(pc),
     .instruction_response(instruction_response),
 
-    .mem_read1(0),
-    .mem_write1(0)
+    // Input
+    .mem_read1(mem_read1),
+    .data_address1(data_address1),
+    .memory_type1(memory_type1),
+
+    // Outputs
+    .data_response1(data_response1),
+    
+    
+    .mem_write1(0),
+    .data_write1(0)
   );
 
   always_ff @(posedge clk) begin
@@ -270,6 +289,7 @@ module top
     .rob_count(rob_count),
     .lsq_count(lsq_count),
     .frontend_stall(frontend_stall),
+    .victim(victim),
   
     // Need to read from the hardware structures
     .rob(rob),
@@ -435,6 +455,8 @@ module top
   MemoryWord memory_data1;
   int memory_le_index;
   lsq_entry memory_le;
+  logic data_missed1, data_ready1;
+  MemoryWord cache_data1;
   memory memory(
     // Housekeeping
     .clk(clk), .reset(reset),
@@ -448,12 +470,17 @@ module top
     .data(exe_mem_reg_1.data),
     .tag(exe_mem_reg_1.tag),
 
+    .data_response1(cache_data1),
+    .data_ready1(data_ready1),
+
     // Outputs
     .result1(memory_data1),
     .lsq_pointer(memory_le_index),
     .le(memory_le),
 
-    .lsq_register(lsq_register)
+    .lsq_register(lsq_register),
+
+    .data_missed1(data_missed1)
   );
   //always_comb begin
   //  memory_data1 = exe_mem_reg_1.result;
@@ -462,7 +489,16 @@ module top
   always_ff @(posedge clk) begin
     //mem_index = 0;
     //mem_le = 0;
-    if (!backend_stall) begin
+    data_ready1 = 0;
+    if (data_finished1) begin
+      cache_data1 = data_response1;
+      data_ready1 = 1;
+      mem_read1 <= 0;
+    end else if (data_missed1) begin
+      data_address1 <= exe_mem_reg_1.result;
+      mem_read1 <= 1;
+      memory_type1 <= exe_mem_reg_1.ctrl_bits.memory_type;
+    end else if (!backend_stall) begin
 
       mem_com_reg_1 <= { exe_mem_reg_1.tag, memory_data1, 
                          exe_mem_reg_1.ctrl_bits };
@@ -598,8 +634,8 @@ module top
         
 
         // HMMMMM Will a later instruction entering the map table make this useless??
-        //if (map_table[retire_re.rd].tag == retire_re.tag)
-        //  map_table[retire_re.rd] <= retire_mte;
+        if (map_table[retire_re.rd].tag == retire_re.tag)
+          map_table[retire_re.rd] <= retire_mte;
       end
 
 

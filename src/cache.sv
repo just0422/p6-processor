@@ -36,7 +36,8 @@ module cache
   input Address                 data_address1,  data_address2,
   input MemoryWord              data_write1,    data_write2,
   input memory_instruction_type memory_type1,   memory_type2,
-  output MemoryWord             data_response1, data_response2
+  output MemoryWord             data_response1, data_response2,
+  output                        data_finished1, data_finished2
   //output data_busy
 );
 
@@ -55,6 +56,7 @@ module cache
     input full_cache fc_in;
     output data_busy;
     output data_miss;
+    output data_finished;
     output MemoryWord value;
     begin
       DoubleLine double_cells;
@@ -76,6 +78,8 @@ module cache
         cache_line cl = cb[ca.index];
 
         if (ca.tag == cl.tag && cl.valid) begin
+          data_finished = 1;
+
           double_cells = cl.cache_cells;
           word_cells = cl.cache_cells;
           half_cells = cl.cache_cells;
@@ -187,13 +191,14 @@ module cache
     output full_cache data_way_register;
     begin
       logic insert_data_busy;
+      logic data_finished; //////////////////////TODO : Make sure this doesn't break anything
       WordMemory words;
       HalfMemory halfs;
       ByteMemory bytes;
       MemoryWord response = 0;
       cache_address ca = address;
 
-      read_data(address, LD, data_way, insert_data_busy, data_miss, response);
+      read_data(address, LD, data_way, insert_data_busy, data_miss, data_finished, response);
       words = (response & 32'hFFFFFFFF << ((!ca.offset >> 2) * 32)) | (value << ((ca.offset >> 2) * 32));
       halfs = (response & 16'hFFFF     << ((!ca.offset >> 3) * 16)) | (value << ((ca.offset >> 3) * 16));
       bytes = (response &  8'hFF       << ((!ca.offset >> 4) *  8)) | (value << ((ca.offset >> 4) *  8));
@@ -216,8 +221,10 @@ module cache
   full_cache data_way_reg;
   always_comb begin : cache_or_mem
     if (!reset) begin
-      data_busy1 = 1;
-      data_busy2 = 1;
+      data_finished1 = 0;
+      data_finished2 = 0;
+      data_busy1 = mem_read1 ? 1 : 0;
+      data_busy2 = mem_read2 ? 1 : 0;
       instruction_busy = 1;
 
       if (mem_write1) begin
@@ -228,10 +235,10 @@ module cache
         //insert_data();
       end else if (mem_read1) begin
         // Send a data read request
-        read_data(data_address1, memory_type1, data_way, data_busy1, data_miss1, data_response1);
+        read_data(data_address1, memory_type1, data_way, data_busy1, data_miss1, data_finished1, data_response1);
       end else if (mem_read2) begin
         // Send a data read request
-        read_data(data_address2, memory_type2, data_way, data_busy2, data_miss2, data_response2);
+        read_data(data_address2, memory_type2, data_way, data_busy2, data_miss2, data_finished2, data_response2);
       end else if (instruction_read) begin// && !busy_register) begin
         // Check cache
         read_instruction(instruction_address, instruction_way, instruction_response_register);

@@ -17,6 +17,9 @@ module scheduler
   input rs_entry res_stations[`RS_SIZE - 1 : 0],
   input registers_dispatch_register regs_dis_reg,
 
+  // This guy is from the most recently retired ROB Head
+  input Victim victim,
+
   // CDB Inputs
   input cdb cdb1,
   input cdb cdb2,
@@ -54,6 +57,8 @@ module scheduler
       else if (cdb2.tag && cdb2.tag == map_table[register_source].tag)
         rs_value = cdb2.value;
       // Check for it in the ROB
+      else if (victim.regstr == register_source)
+        rs_value = victim.value;
       else if (map_table[register_source].tag && map_table[register_source].in_rob)
         rs_value = rob[map_table[register_source].tag - 1].value;
       // Check for it in the register file

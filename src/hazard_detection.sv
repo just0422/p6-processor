@@ -6,11 +6,18 @@ module hazard_detection
 
   // Cache inputs
   input busy, overwrite_pc, instruction,
+  input data_busy1, data_finished1, data_missed1,
 
   // Hardware Inputs
   input rob_full,
 
+  // Retire Inputs
+  input rob_entry rob [`ROB_SIZE - 1 : 0],
+  input int rob_head,
+
   // Output
+  output Victim victim, 
+
   output fetch_stall, frontend_stall, backend_stall
 );
 
@@ -28,9 +35,14 @@ module hazard_detection
   end
 
   always_comb begin
-    backend_stall = 0;
+    backend_stall = reset;
+    backend_stall |= data_missed1 || data_busy1 || data_finished1;
     //rob_increment = !reset;
     //rob_increment &= !busy && !overwrite_pc && instruction;
   end
+
+  always_ff @ (posedge clk)
+    if (rob[rob_head].ready && rob[rob_head - 1].rd)
+      victim = { rob[rob_head].rd, rob[rob_head].value };
 
 endmodule
