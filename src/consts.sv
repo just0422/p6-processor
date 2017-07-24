@@ -55,6 +55,19 @@ typedef logic [`CELLS_NEEDED * 8 - 1 : 0][`BYTE - 1 : 0]              ByteLine;
 // OFFSET bits will alawys be a multiple of 4
 // TAG SIZE + INDEX + OFFSET
 //   53         5       6
+`define WRITE1          1
+`define WRITE2          `WRITE1 * 2
+`define READ1           `WRITE2 * 2
+`define READ2           `READ1  * 2
+`define IREAD           `READ2  * 2
+
+typedef struct packed {
+  logic iread;
+  logic read2;
+  logic read1;
+  logic write2;
+  logic write1;
+} cache_reserve;
 
 typedef logic [`TAG_SIZE_B - 1 : 0] cache_tag; 
 typedef logic [`INDEX_SIZE_B - 1 : 0] cache_index;

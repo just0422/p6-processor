@@ -44,6 +44,9 @@ module cache
   cache_block [`WAYS - 1 : 0] data_way; // 32 KB Data Cache
   cache_block [`WAYS - 1 : 0] instruction_way; // 32 KB Instruction Cache
 
+  cache_reserve reserver; // Is something making a call to cache right now??
+  cache_reserve reserver_reg;
+
   logic busy_register;
   logic [`BUS_DATA_WIDTH - 1 : 0] response_register;
   logic waiting; // Waiting for memory response
@@ -68,6 +71,7 @@ module cache
       
       value = 0;
 
+
       if (!waiting && !inserting)
         data_miss = 1;
       else
@@ -87,6 +91,7 @@ module cache
 
           data_miss = 0;
           data_busy = 0;
+          reserver = 0;
 
           // value = _____[ca.offset]
           case(memory_type)
@@ -125,6 +130,7 @@ module cache
           instruction_cells = cl.cache_cells; // Cast cache_cells to instruction_cells for size_purposes
           instruction_miss = 0;
           instruction_busy = 0;
+          reserver = 0;
           value = instruction_cells[ca.offset >> 2]; // grab value at offset
       //    $display("%d - %x", ca.index, cl);
       //    $display("%b", ca);
@@ -227,24 +233,33 @@ module cache
       data_busy2 = mem_read2 ? 1 : 0;
       instruction_busy = 1;
 
-      if (mem_write1) begin
+      if (mem_write1 && (!reserver_reg || reserver_reg.write1)) begin
         // Write to cache
+        reserver = `WRITE1;
         insert_data(data_address1, data_write1, memory_type1, data_busy1, data_miss1, data_way_reg);
-      end else if (mem_write2) begin
+      end else if (mem_write2 && (!reserver_reg || reserver_reg.write2)) begin
+        reserver = `WRITE2;
         insert_data(data_address2, data_write2, memory_type2, data_busy2, data_miss2, data_way_reg);
         //insert_data();
-      end else if (mem_read1) begin
+      end else if (mem_read1 && (!reserver_reg || reserver_reg.read1)) begin
+        reserver = `READ1;
         // Send a data read request
         read_data(data_address1, memory_type1, data_way, data_busy1, data_miss1, data_finished1, data_response1);
-      end else if (mem_read2) begin
+      end else if (mem_read2 && (!reserver_reg || reserver_reg.write1)) begin
+        reserver = `READ2;
         // Send a data read request
         read_data(data_address2, memory_type2, data_way, data_busy2, data_miss2, data_finished2, data_response2);
-      end else if (instruction_read) begin// && !busy_register) begin
+      end else if (instruction_read && (!reserver_reg || reserver_reg.iread)) begin// && !busy_register) begin
+        reserver = `IREAD;
         // Check cache
         read_instruction(instruction_address, instruction_way, instruction_response_register);
         instruction_response = instruction_response_register[`INSTRUCTION_SIZE - 1 : 0];
      end
     end
+  end
+
+  always_ff @(posedge clk) begin
+    reserver_reg <= reserver;
   end
 
   always_ff @(posedge clk) begin

@@ -44,7 +44,7 @@ module top
   int x = 0;
   always_ff @(posedge clk) begin
     x++;
-    if (x > 200)
+    if (x > 400)
       $finish;
   end
 
