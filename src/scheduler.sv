@@ -75,6 +75,7 @@ module scheduler
     MemoryWord rs_val_1 = 0, rs_val_2 = 0;
     int rs_tag_1 = 0, rs_tag_2 = 0;
     control_bits ctrl_bits = regs_dis_reg.ctrl_bits;
+    rse = 0;
     
     // TODO
     // Remember to consider AUIPC and LUI for res station 1

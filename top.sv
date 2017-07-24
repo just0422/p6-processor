@@ -166,11 +166,12 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    //cac_bp_reg <= 0;
     if (!fetch_stall) begin
       cac_bp_reg <= { instruction_response, pc };
       pc <= pc + 4;
     end
+    else if (!frontend_stall)
+      cac_bp_reg <= 0;
   end
 
   cache_branchprediction_register cac_bp_reg;

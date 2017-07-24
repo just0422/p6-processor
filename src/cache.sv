@@ -82,6 +82,11 @@ module cache
         cache_line cl = cb[ca.index];
 
         if (ca.tag == cl.tag && cl.valid) begin
+          $display("*********DATA\ncache address  -  %x", ca);
+          $display("%b - %b - %b", ca.tag, ca.index, ca.offset);
+          //$display("way            -  %x", way);
+          $display("cache line     -  %x\n**********DATA", cl);
+
           data_finished = 1;
 
           double_cells = cl.cache_cells;
@@ -229,8 +234,8 @@ module cache
     if (!reset) begin
       data_finished1 = 0;
       data_finished2 = 0;
-      data_busy1 = mem_read1 ? 1 : 0;
-      data_busy2 = mem_read2 ? 1 : 0;
+      data_busy1 = mem_read1;
+      data_busy2 = mem_read2;
       instruction_busy = 1;
 
       if (mem_write1 && (!reserver_reg || reserver_reg.write1)) begin
@@ -374,6 +379,7 @@ module cache
     if (ready_to_insert && mem_read1) begin
       data_insert_address1 = data_address1_register  & 64'hfffffffffffffff8;
       insert(data_insert_address1, value, data_way, data_way_insert_register);
+      inserted = 1;
     end else if (ready_to_insert && mem_read2) begin
       data_insert_address2 = data_address2_register  & 64'hfffffffffffffff8;
       insert(data_insert_address2, value, data_way, data_way_insert_register);
