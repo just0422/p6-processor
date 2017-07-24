@@ -14,7 +14,9 @@ module retire (
   output lsq_entry le,
 
   output rob_decrement,
-  output lsq_decrement
+  output lsq_decrement,
+
+  output victim
 );
 
   always_comb begin
@@ -22,6 +24,7 @@ module retire (
     value = 0;
     re = 0;
     mte  = 0;
+    regwr = 0;
     rob_decrement = 0;
 
     le = 0;
@@ -41,5 +44,8 @@ module retire (
       end
     end
   end
+
+  always_comb
+    victim = rob_head.ready && rob_head.ctrl_bits.regwr;
 
 endmodule

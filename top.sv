@@ -102,7 +102,7 @@ module top
 
     // Retire Hazards,
     .rob(rob),
-    .rob_head(rob_head)
+    .rob_head(rob_head),
 
     // Output
     .backend_stall(backend_stall), // Stall when 1
@@ -594,7 +594,7 @@ module top
 
   
   /***************************** RETIRE *******************************/
-  logic retire_regwr;
+  logic retire_regwr, victimized;
   Register retire_rd;
   MemoryWord retire_value;
   rob_entry retire_re;
@@ -616,7 +616,8 @@ module top
     .regwr(retire_regwr),
 
     .rob_decrement(rob_decrement),
-    .lsq_decrement(lsq_decrement)
+    .lsq_decrement(lsq_decrement),
+    .victim(victimized)
   );
  
   Register write_rd;
@@ -627,6 +628,7 @@ module top
     write_rd <= 0;
     write_data <= 0;
     write_regwr <= 0;
+    //victim <= 0;  // HELP: DO I need this or does the Victim hang around until changed??
 
     if (retire_re.ready) begin
       if (retire_regwr) begin
@@ -662,6 +664,9 @@ module top
         if(lsq_increment ^ lsq_decrement && lsq_decrement)
           lsq_count <= lsq_count - 1;
       end
+
+      if (victimized)
+        victim <= { retire_re.rd, retire_re.value };
     end
   end
    

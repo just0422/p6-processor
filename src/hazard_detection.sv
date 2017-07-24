@@ -41,8 +41,4 @@ module hazard_detection
     //rob_increment &= !busy && !overwrite_pc && instruction;
   end
 
-  always_ff @ (posedge clk)
-    if (rob[rob_head].ready && rob[rob_head - 1].rd)
-      victim = { rob[rob_head].rd, rob[rob_head].value };
-
 endmodule
