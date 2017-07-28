@@ -22,7 +22,7 @@ module cache
   output [`BUS_TAG_WIDTH - 1 : 0] bus_reqtag,
 
   // Hazard signals
-  output instruction_busy, data_busy1, data_busy2,
+  output instruction_busy, data_busy,
 
   // Instruction Read Request
   input instruction_read,
@@ -61,7 +61,6 @@ module cache
     input Address address;
     input memory_instruction_type memory_type;
     input full_cache fc_in;
-    output data_busy;
     output data_miss;
     output data_finished;
     output MemoryWord value;
@@ -88,7 +87,7 @@ module cache
         //$display("%3d - (CA) %x == %x (CL)\t\tValid - %1d\tWay - %1d", x, ca.tag, cl.tag, cl.valid, i);
 
         if (ca.tag == cl.tag && cl.valid) begin
-          $display("*********DATA\ncache address  -  %x", ca);
+          $display("*********DATA - %3d\ncache address  -  %x",x, ca);
           $display("%b - %b - %b", ca.tag, ca.index, ca.offset);
           //$display("way            -  %x", way);
           $display("cache line     -  %x\n**********DATA", cl);
@@ -101,7 +100,6 @@ module cache
           byte_cells = cl.cache_cells;
 
           data_miss = 0;
-          data_busy = 0;
           reserver = 0;
 
           // value = _____[ca.offset]
@@ -204,24 +202,22 @@ module cache
     input Address address;
     input MemoryWord value;
     input memory_instruction_type memory_type;
-    output data_busy;
     output data_miss;
     output full_cache data_way_register;
     begin
-      logic insert_data_busy;
-      logic data_finished; //////////////////////TODO : Make sure this doesn't break anything
+      logic data_finished = 0; //////////////////////TODO : Make sure this doesn't break anything
       WordMemory words;
       HalfMemory halfs;
       ByteMemory bytes;
       MemoryWord response = 0;
       cache_address ca = address;
 
-      read_data(address, LD, data_way, insert_data_busy, data_miss, data_finished, response);
+      read_data(address, LD, data_way, data_miss, data_finished, response);
       words = (response & 32'hFFFFFFFF << ((!ca.offset >> 2) * 32)) | (value << ((ca.offset >> 2) * 32));
       halfs = (response & 16'hFFFF     << ((!ca.offset >> 3) * 16)) | (value << ((ca.offset >> 3) * 16));
       bytes = (response &  8'hFF       << ((!ca.offset >> 4) *  8)) | (value << ((ca.offset >> 4) *  8));
 
-      if (!insert_data_busy && response) begin
+      if (data_finished) begin
         case(memory_type)
           SD: insert(address, value, data_way, data_way_register);
           SW: insert(address, words, data_way, data_way_register);
@@ -241,26 +237,25 @@ module cache
     if (!reset) begin
       data_finished1 = 0;
       data_finished2 = 0;
-      data_busy1 = mem_read1;
-      data_busy2 = mem_read2;
+      data_busy = mem_read1 || mem_read2;
       instruction_busy = 1;
 
       if (mem_write1 && (!reserver_reg || reserver_reg.write1)) begin
         // Write to cache
         reserver = `WRITE1;
-        insert_data(data_address1, data_write1, memory_type1, data_busy1, data_miss1, data_way_reg);
+        insert_data(data_address1, data_write1, memory_type1, data_miss1, data_way_reg);
       end else if (mem_write2 && (!reserver_reg || reserver_reg.write2)) begin
         reserver = `WRITE2;
-        insert_data(data_address2, data_write2, memory_type2, data_busy2, data_miss2, data_way_reg);
+        insert_data(data_address2, data_write2, memory_type2, data_miss2, data_way_reg);
         //insert_data();
       end else if (mem_read1 && (!reserver_reg || reserver_reg.read1)) begin
         reserver = `READ1;
         // Send a data read request
-        read_data(data_address1, memory_type1, data_way, data_busy1, data_miss1, data_finished1, data_response1);
+        read_data(data_address1, memory_type1, data_way, data_miss1, data_finished1, data_response1);
       end else if (mem_read2 && (!reserver_reg || reserver_reg.write1)) begin
         reserver = `READ2;
         // Send a data read request
-        read_data(data_address2, memory_type2, data_way, data_busy2, data_miss2, data_finished2, data_response2);
+        read_data(data_address2, memory_type2, data_way,  data_miss2, data_finished2, data_response2);
       end else if (instruction_read && (!reserver_reg || reserver_reg.iread)) begin// && !busy_register) begin
         reserver = `IREAD;
         // Check cache
@@ -275,7 +270,7 @@ module cache
   end
 
   always_ff @(posedge clk) begin
-    if ((mem_write1 && !data_busy1) || (mem_write2 && !data_busy2))
+    if ((mem_write1 && data_finished1) || (mem_write2 && data_finished1))
       data_way <= data_way_reg;
   end
 

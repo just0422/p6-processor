@@ -95,7 +95,7 @@ module top
     
     // Cache hazards
     .busy(i_busy), .overwrite_pc(overwrite_pc), .instruction(instruction_response),
-    .data_busy1(data_busy1), .data_finished1(data_finished1), .data_missed1(data_missed1),
+    .data_busy(data_busy), .data_finished1(data_finished1), .data_missed1(data_missed1),
 
     // Hardware hazards
     .rob_full(rob_full),
@@ -126,7 +126,7 @@ module top
   
   logic [`DATA_SIZE-1:0] d_req_r, d_req_w, d_write, d_data;
   logic [3:0] req_size_w, req_size_r;
-  logic i_busy, d_busy, w_busy;
+  logic i_busy, data_busy, w_busy;
 
   logic mem_read1, mem_write2;
   Address data_address1;
@@ -145,7 +145,7 @@ module top
     .bus_resp(bus_resp),              .bus_reqtag(bus_reqtag), 
          
     .instruction_busy(i_busy),
-    .data_busy1(d_busy),
+    .data_busy(data_busy),
     .data_finished1(data_finished1),
     
     .instruction_read(instruction_read),

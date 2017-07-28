@@ -6,7 +6,7 @@ module hazard_detection
 
   // Cache inputs
   input busy, overwrite_pc, instruction,
-  input data_busy1, data_finished1, data_missed1,
+  input data_busy, data_finished1, data_missed1,
 
   // Hardware Inputs
   input rob_full,
@@ -36,7 +36,7 @@ module hazard_detection
 
   always_comb begin
     backend_stall = reset;
-    backend_stall |= data_missed1 || data_busy1 || data_finished1;
+    backend_stall |= data_missed1 || data_busy || data_finished1;
     //rob_increment = !reset;
     //rob_increment &= !busy && !overwrite_pc && instruction;
   end
