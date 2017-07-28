@@ -51,8 +51,11 @@ module scheduler
     begin
       rs_value = 0;
       rs_tag = 0;
+      // Can't believe this edge case came up lol
+      if (register_source == 0) 
+        rs_value = 0;
       // Check the CDB Broadcasts
-      if (cdb1.tag && cdb1.tag == map_table[register_source].tag)
+      else if (cdb1.tag && cdb1.tag == map_table[register_source].tag)
         rs_value = cdb1.value;
       else if (cdb2.tag && cdb2.tag == map_table[register_source].tag)
         rs_value = cdb2.value;
@@ -195,8 +198,11 @@ module scheduler
     control_bits ctrl_bits = regs_dis_reg.ctrl_bits;
     mte = 0;
     
+    // Didn't think code would actually do something like this for me to protect against
+    if (regs_dis_reg.rd == 0)
+      mte = 0;
     // No map table entry needed for Unsupported and Ecall
-    if (ctrl_bits.unsupported || ctrl_bits.ecall)
+    else if (ctrl_bits.unsupported || ctrl_bits.ecall)
       mte = 0;
     // Set entry as ready for JALR
     // TODO: check this to see if the logic is correct
