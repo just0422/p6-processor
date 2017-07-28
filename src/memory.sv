@@ -43,11 +43,11 @@ module memory
         if (lsq[i].tag == tag) begin
           lsq_pointer = i + 1;  // Let's try to keep the array 1-index
 
-          le.tag = tag;
+          le = lsq[i];
+          le.ready = 1;
           le.address = address;
           le.value = data;
-          le.color = lsq[i].color;
-          
+
           for (int j = 0; j < `LSQ_SIZE; j++) begin
             if (lsq[j].address == address &&
                 lsq[j].category == LOAD &&

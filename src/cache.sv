@@ -22,7 +22,7 @@ module cache
   output [`BUS_TAG_WIDTH - 1 : 0] bus_reqtag,
 
   // Hazard signals
-  output instruction_busy, data_busy,
+  output instruction_busy, data_busy, write_busy,
 
   // Instruction Read Request
   input instruction_read,
@@ -30,14 +30,19 @@ module cache
   output [`INSTRUCTION_SIZE - 1 : 0] instruction_response,
   //output instruction_busy,
 
-  // Data Request
-  input                         mem_read1,      mem_read2,
-  input                         mem_write1,     mem_write2,
-  input Address                 data_address1,  data_address2,
-  input MemoryWord              data_write1,    data_write2,
-  input memory_instruction_type memory_type1,   memory_type2,
-  output MemoryWord             data_response1, data_response2,
-  output                        data_finished1, data_finished2
+  // Data Read Request
+  input                         mem_read1,           mem_read2,
+  input Address                 data_read_address1,  data_read_address2,
+  output MemoryWord             data_response1,      data_response2,
+  output                        data_finished1,      data_finished2,
+  input memory_instruction_type memory_read_type1,   memory_read_type2,
+
+  // Data Write Request
+  input                         mem_write1,          mem_write2,
+  input Address                 data_write_address1, data_write_address2,
+  input MemoryWord              data_write1,         data_write2,
+  input memory_instruction_type memory_write_type1,  memory_write_type2,
+  output                        write_finished
   //output data_busy
 );
 
@@ -54,8 +59,9 @@ module cache
   logic busy_register;
   logic [`BUS_DATA_WIDTH - 1 : 0] response_register;
   logic waiting; // Waiting for memory response
-  logic data_miss1, data_miss2, instruction_miss; // Did we miss in cache??
   logic inserting; // Are we currently inserting into the cache
+  logic evicting; // Am I evicting from memory
+  logic data_miss1, data_miss2, instruction_miss; // Did we miss in cache??
 
   task read_data;
     input Address address;
@@ -150,15 +156,20 @@ module cache
     end
   endtask
 
+  
+  logic [`ADDRESS_SIZE - 1 : 0] eviction_address;  // Eviction cache address
+  cache_cell [`CELLS_NEEDED - 1 : 0] eviction_ccs; // Eviction cache line values
   task evict;
-    input cache_tag tag;
+    input cache_line cl;
     input cache_index index;
-    input cache_cell cells;
     begin
       // send to memory
-      logic [`ADDRESS_SIZE - 1 : 0] address;
 
-      address = { tag, index, {`OFFSET_SIZE_B{1'b0}} };
+      eviction_address = { cl.tag, index, {`OFFSET_SIZE_B{1'b0}} };
+      eviction_ccs = cl.cache_cells;
+      evicting = 1;
+      $display("%3d - EVICTING -> %b - %b - %b", x, cl.tag, index, 6'b0);
+      $display ("%3d - EVICTING -> %x", x, cl.cache_cells);
     end
   endtask
 
@@ -174,8 +185,11 @@ module cache
       cache_block cb = fc_in[way];  // Get block 'dcb' at way[i]
       cache_line cl = cb[ca.index]; // Get cache line 'dcl' dcb[index]
 
+      eviction_address = 0;
+      eviction_ccs = 0;
+      evicting = 0;
       if (cl.dirty && ca.tag != cl.tag) begin
-        evict(cl.tag, ca.index, cl.cache_cells);
+        evict(cl, ca.index);
       end
 
       cl = 0;
@@ -205,7 +219,7 @@ module cache
     output data_miss;
     output full_cache data_way_register;
     begin
-      logic data_finished = 0; //////////////////////TODO : Make sure this doesn't break anything
+      logic data_finished = 0; 
       WordMemory words;
       HalfMemory halfs;
       ByteMemory bytes;
@@ -224,7 +238,12 @@ module cache
           SH: insert(address, halfs, data_way, data_way_register);
           SB: insert(address, bytes, data_way, data_way_register);
         endcase
-        data_busy = 0;
+      end
+
+      if (!evicting) begin
+        write_busy = 0;
+        write_finished = 1;
+        reserver = 0;
       end
     end
   endtask
@@ -237,25 +256,27 @@ module cache
     if (!reset) begin
       data_finished1 = 0;
       data_finished2 = 0;
-      data_busy = mem_read1 || mem_read2;
+      write_finished = 0;
+      write_busy = mem_write1;
+      data_busy = mem_read1 || mem_read2; 
       instruction_busy = 1;
 
       if (mem_write1 && (!reserver_reg || reserver_reg.write1)) begin
         // Write to cache
         reserver = `WRITE1;
-        insert_data(data_address1, data_write1, memory_type1, data_miss1, data_way_reg);
+        insert_data(data_write_address1, data_write1, memory_write_type1, data_miss1, data_way_reg);
       end else if (mem_write2 && (!reserver_reg || reserver_reg.write2)) begin
         reserver = `WRITE2;
-        insert_data(data_address2, data_write2, memory_type2, data_miss2, data_way_reg);
+        insert_data(data_write_address2, data_write2, memory_write_type2, data_miss2, data_way_reg);
         //insert_data();
       end else if (mem_read1 && (!reserver_reg || reserver_reg.read1)) begin
         reserver = `READ1;
         // Send a data read request
-        read_data(data_address1, memory_type1, data_way, data_miss1, data_finished1, data_response1);
+        read_data(data_read_address1, memory_read_type1, data_way, data_miss1, data_finished1, data_response1);
       end else if (mem_read2 && (!reserver_reg || reserver_reg.write1)) begin
         reserver = `READ2;
         // Send a data read request
-        read_data(data_address2, memory_type2, data_way,  data_miss2, data_finished2, data_response2);
+        read_data(data_read_address2, memory_read_type2, data_way,  data_miss2, data_finished2, data_response2);
       end else if (instruction_read && (!reserver_reg || reserver_reg.iread)) begin// && !busy_register) begin
         reserver = `IREAD;
         // Check cache
@@ -270,12 +291,14 @@ module cache
   end
 
   always_ff @(posedge clk) begin
-    if ((mem_write1 && data_finished1) || (mem_write2 && data_finished1))
+    if (mem_write1 && write_finished) 
       data_way <= data_way_reg;
   end
 
   /******************* STEP 2a **************************/
-  // Send request to memory
+  // Send write requets to memory
+  logic start_sending_out;
+  // Send read request to memory
   logic response_received;
   Address instruction_address_register;
   Address data_address1_register;
@@ -283,17 +306,24 @@ module cache
   logic [`CELLS_NEEDED_B : 0] current_request_offset;
   always_ff @(posedge clk) begin : make_request
     instruction_address_register = instruction_address;
-    data_address1_register = data_address1;
-    data_address2_register = data_address2;
+    data_address1_register = data_read_address1;
+    data_address2_register = data_read_address2;
     // ** Should reach here first
     // If Instruction is not in cache
+    if (evicting) begin
+      bus_reqtag <= `MEM_WRITE;
+      bus_reqcyc <= 1;
+      bus_req <= eviction_address;
+      start_sending_out <= 0;
+      // waiting <= 1;
+    end
     if (data_miss1) begin
-      bus_req <= data_address1 & `MEMORY_MASK;// + (current_request_offset * `CELLS_NEEDED_B);
+      bus_req <= data_read_address1 & `MEMORY_MASK;// + (current_request_offset * `CELLS_NEEDED_B);
       bus_reqtag <= `MEM_READ;
       bus_reqcyc <= 1;
       waiting <= 1;
     end else if (data_miss2) begin
-      bus_req <= data_address2 & `MEMORY_MASK;// + (current_request_offset * `CELLS_NEEDED_B);
+      bus_req <= data_read_address2 & `MEMORY_MASK;// + (current_request_offset * `CELLS_NEEDED_B);
       bus_reqtag <= `MEM_READ;
       bus_reqcyc <= 1;
       waiting <= 1;
@@ -310,30 +340,63 @@ module cache
   // Reset values when request is acknowledged
   always_ff @(posedge clk) begin : request_acknowledged
     if (bus_reqack) begin
-      bus_reqcyc <= 0;
-      bus_req <= 0;
-      bus_reqtag <= 0;
+      if (evicting) begin
+        start_sending_out <= 1;
+        sent_out <= 0;
+        eviction_index <= 0;
+      end else begin
+        bus_reqcyc <= 0;
+        bus_req <= 0;
+        bus_reqtag <= 0;
+      end
       // Once memory acknowledges our request
     end
   end
 
   /******************* STEP 2c **************************/
   // Receive response
+  logic sent_out;
+  logic [2:0] eviction_index;
   always_ff @(posedge clk) begin : receive_response
-    bus_respack <= 0;
-    response_received <= 0;
+    if (evicting) begin
+      if (start_sending_out) begin
+        bus_req <= eviction_ccs[eviction_index];
+        if (eviction_index == 7) begin
+          start_sending_out <= 0;
+          sent_out <= 1;
+        end
+        eviction_index <= eviction_index + 1;
+      end
+    end else begin
+      bus_respack <= 0;
+      response_received <= 0;
 
-    // ** Should reach here second also
-    // Acknowledge that response was received
-    if (bus_respcyc) begin
-      response_register <= bus_resp;
-      bus_respack <= 1;
-      response_received <= 1;
+      // ** Should reach here second also
+      // Acknowledge that response was received
+      if (bus_respcyc) begin
+        response_register <= bus_resp;
+        bus_respack <= 1;
+        response_received <= 1;
+      end
+
+      if (bus_resptag == `MEM_READ) begin
+        waiting <= 0;
+        inserting <= 1;
+      end
     end
+  end
 
-    if (bus_resptag == `MEM_READ) begin
-      waiting <= 0;
-      inserting <= 1;
+  
+  /******************* STEP 2d **************************/
+  always_ff @(posedge clk) begin
+    bus_respack <= 0;
+    if (sent_out && bus_respcyc) begin
+      sent_out <= 0;
+      evicting = 0;
+
+      bus_respack <= 1;
+      bus_reqtag <= 0;
+      bus_req <= 0;
     end
   end
 

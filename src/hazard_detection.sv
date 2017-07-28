@@ -5,8 +5,10 @@ module hazard_detection
   input reset, 
 
   // Cache inputs
-  input busy, overwrite_pc, instruction,
+  input busy, overwrite_pc, 
+  input InstructionWord instruction,
   input data_busy, data_finished1, data_missed1,
+  input write_busy, write_finished,
 
   // Hardware Inputs
   input rob_full,
@@ -18,7 +20,7 @@ module hazard_detection
   // Output
   output Victim victim, 
 
-  output fetch_stall, frontend_stall, backend_stall
+  output fetch_stall, frontend_stall, backend_stall, retire_stall
 );
 
   //always_ff @(posedge clk) begin
@@ -39,6 +41,12 @@ module hazard_detection
     backend_stall |= data_missed1 || data_busy || data_finished1;
     //rob_increment = !reset;
     //rob_increment &= !busy && !overwrite_pc && instruction;
+  end
+
+  always_comb begin
+    retire_stall = reset;
+
+    retire_stall |= write_busy || write_finished;
   end
 
 endmodule

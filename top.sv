@@ -87,7 +87,7 @@ module top
     end
 
   /************************** HAZARD DETECTION *****************************/
-  logic frontend_stall, backend_stall, fetch_stall;
+  logic frontend_stall, backend_stall, fetch_stall, retire_stall;
   Victim victim;
   hazard_detection hazards(
     // Housekeeping
@@ -95,7 +95,8 @@ module top
     
     // Cache hazards
     .busy(i_busy), .overwrite_pc(overwrite_pc), .instruction(instruction_response),
-    .data_busy(data_busy), .data_finished1(data_finished1), .data_missed1(data_missed1),
+    .data_busy(data_busy), .data_finished1(data_finished1), .data_missed1(data_missed_lsq1),
+    .write_busy(write_busy), .write_finished(write_finished),
 
     // Hardware hazards
     .rob_full(rob_full),
@@ -108,6 +109,7 @@ module top
     .backend_stall(backend_stall), // Stall when 1
     .frontend_stall(frontend_stall), // Stall when 1
     .fetch_stall(fetch_stall),
+    .retire_stall(retire_stall),
 
     .victim(victim)
   );
@@ -126,13 +128,19 @@ module top
   
   logic [`DATA_SIZE-1:0] d_req_r, d_req_w, d_write, d_data;
   logic [3:0] req_size_w, req_size_r;
-  logic i_busy, data_busy, w_busy;
+  logic i_busy, data_busy, write_busy;
 
-  logic mem_read1, mem_write2;
-  Address data_address1;
-  memory_instruction_type memory_type1;
+  logic mem_read1;
   logic data_finished1;
   MemoryWord data_response1;
+  Address data_read_address1;
+  memory_instruction_type memory_read_type1;
+
+  logic mem_write;
+  logic write_finished;
+  MemoryWord data_write;
+  Address data_write_address;
+  memory_instruction_type memory_write_type;
 
   cache cache (
     // Housekeeping
@@ -146,23 +154,27 @@ module top
          
     .instruction_busy(i_busy),
     .data_busy(data_busy),
+    .write_busy(write_busy),
+
     .data_finished1(data_finished1),
+    .write_finished(write_finished),
     
     .instruction_read(instruction_read),
     .instruction_address(pc),
     .instruction_response(instruction_response),
 
-    // Input
+    // Input Read
     .mem_read1(mem_read1),
-    .data_address1(data_address1),
-    .memory_type1(memory_type1),
+    .data_read_address1(data_read_address1),
+    .memory_read_type1(memory_read_type1),
 
-    // Outputs
+    // Outputs Read
     .data_response1(data_response1),
     
-    
-    .mem_write1(0),
-    .data_write1(0)
+    // Input Write
+    .mem_write1(mem_write),
+    .data_write_address1(data_write_address),
+    .data_write1(data_write)
   );
 
   always_ff @(posedge clk) begin
@@ -460,7 +472,7 @@ module top
   MemoryWord memory_data1;
   int memory_le_index;
   lsq_entry memory_le;
-  logic data_missed1, data_ready1;
+  logic data_missed_lsq1, data_ready1;
   MemoryWord cache_data1;
   memory memory(
     // Housekeeping
@@ -485,7 +497,7 @@ module top
 
     .lsq_register(lsq_register),
 
-    .data_missed1(data_missed1)
+    .data_missed1(data_missed_lsq1)
   );
   //always_comb begin
   //  memory_data1 = exe_mem_reg_1.result;
@@ -499,10 +511,10 @@ module top
       cache_data1 = data_response1;
       data_ready1 = 1;
       mem_read1 <= 0;
-    end else if (data_missed1) begin
-      data_address1 <= exe_mem_reg_1.result;
+    end else if (data_missed_lsq1) begin
+      data_read_address1 <= exe_mem_reg_1.result;
       mem_read1 <= 1;
-      memory_type1 <= exe_mem_reg_1.ctrl_bits.memory_type;
+      memory_read_type1 <= exe_mem_reg_1.ctrl_bits.memory_type;
     end else if (!backend_stall) begin
 
       mem_com_reg_1 <= { exe_mem_reg_1.tag, memory_data1, 
@@ -601,6 +613,8 @@ module top
   rob_entry retire_re;
   lsq_entry retire_le;
   map_table_entry retire_mte;
+
+  int retire_le_size;
   
   retire retire(
     // Housekeeping
@@ -608,6 +622,8 @@ module top
 
     .rob_head(rob[rob_head - 1]),
     .lsq_head(lsq[lsq_head - 1]),
+
+    .retire_stall(retire_stall),
     
     // Outputs
     .rd(retire_rd), .value(retire_value),
@@ -616,6 +632,7 @@ module top
     .le(retire_le),
     .regwr(retire_regwr),
 
+    .le_size(retire_le_size),
     .rob_decrement(rob_decrement),
     .lsq_decrement(lsq_decrement),
     .victim(victimized)
@@ -631,7 +648,9 @@ module top
     write_regwr <= 0;
     //victim <= 0;  // HELP: DO I need this or does the Victim hang around until changed??
 
-    if (retire_re.ready) begin
+    if (write_finished)
+      mem_write <= 0;
+    if (retire_re.ready && !retire_stall) begin
       if (retire_regwr) begin
         write_rd <= retire_rd;
         write_data <= retire_value;
@@ -664,7 +683,17 @@ module top
 
         if(lsq_increment ^ lsq_decrement && lsq_decrement)
           lsq_count <= lsq_count - 1;
+
+        if (retire_le.category == STORE) begin
+          mem_write <= 1;
+          data_write_address <= retire_le.address;
+          data_write <= retire_le.value;
+          memory_write_type <= retire_le.memory_type;
+          do_pending_write(retire_le.address, retire_le.value, retire_le_size);
+        end
+
       end
+
 
       if (victimized)
         victim <= { retire_re.rd, retire_re.value };
