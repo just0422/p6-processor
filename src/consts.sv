@@ -11,6 +11,7 @@
 `define INSTRUCTION_SIZE            32
 `define LSQ_SIZE                    4
 `define MEM_READ                    0'h1100
+`define MEMORY_MASK                 64'hffffffffffffffC0
 `define NUMBER_OF_REGISTERS         32
 `define NUMBER_OF_REGISTERS_B       $clog2(`NUMBER_OF_REGISTERS - 1)
 `define OFFSET_SIZE                 64 

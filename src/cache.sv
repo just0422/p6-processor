@@ -293,18 +293,18 @@ module cache
     // ** Should reach here first
     // If Instruction is not in cache
     if (data_miss1) begin
-      bus_req <= data_address1 & 64'hfffffffffffffff8;// + (current_request_offset * `CELLS_NEEDED_B);
+      bus_req <= data_address1 & `MEMORY_MASK;// + (current_request_offset * `CELLS_NEEDED_B);
       bus_reqtag <= `MEM_READ;
       bus_reqcyc <= 1;
       waiting <= 1;
     end else if (data_miss2) begin
-      bus_req <= data_address2 & 64'hfffffffffffffff8;// + (current_request_offset * `CELLS_NEEDED_B);
+      bus_req <= data_address2 & `MEMORY_MASK;// + (current_request_offset * `CELLS_NEEDED_B);
       bus_reqtag <= `MEM_READ;
       bus_reqcyc <= 1;
       waiting <= 1;
     end else if (instruction_miss) begin
       // Send an instruction read request
-      bus_req <= instruction_address & 64'hfffffffffffffff8;// + (current_request_offset * `CELLS_NEEDED_B);
+      bus_req <= instruction_address & `MEMORY_MASK;// + (current_request_offset * `CELLS_NEEDED_B);
       bus_reqtag <= `MEM_READ;
       bus_reqcyc <= 1;
       waiting <= 1;
@@ -384,15 +384,15 @@ module cache
     inserted = 0; 
 
     if (ready_to_insert && mem_read1) begin
-      data_insert_address1 = data_address1_register  & 64'hfffffffffffffff8;
+      data_insert_address1 = data_address1_register  & `MEMORY_MASK;
       insert(data_insert_address1, value, data_way, data_way_insert_register);
       inserted = 1;
     end else if (ready_to_insert && mem_read2) begin
-      data_insert_address2 = data_address2_register  & 64'hfffffffffffffff8;
+      data_insert_address2 = data_address2_register  & `MEMORY_MASK;
       insert(data_insert_address2, value, data_way, data_way_insert_register);
       inserted = 1;
     end else if (ready_to_insert && instruction_read) begin
-      instruction_insert_address = instruction_address_register & 64'hfffffffffffffff8;
+      instruction_insert_address = instruction_address_register & `MEMORY_MASK;
       insert(instruction_insert_address, value, instruction_way, instruction_way_insert_register);
       inserted = 1;
     end
