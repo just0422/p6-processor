@@ -93,9 +93,10 @@ module memory
             end
 
             if (!le) begin
-              data_missed1 = 1;
-
-              lsq_register[i].value = data_response1;
+              if (!data_ready1)
+                data_missed1 = 1;
+              else
+                lsq_register[i].value = data_response1;
             end
               // If false
               //    Request from memoryfor (int i = 0; i < `LSQ_SIZE; i++) begin
