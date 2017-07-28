@@ -61,6 +61,8 @@ typedef logic [`CELLS_NEEDED * 8 - 1 : 0][`BYTE - 1 : 0]              ByteLine;
 `define READ2           `READ1  * 2
 `define IREAD           `READ2  * 2
 
+
+// These types of instructions can reserve the cache if requested address is in memory
 typedef struct packed {
   logic iread;
   logic read2;

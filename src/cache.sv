@@ -44,6 +44,10 @@ module cache
   cache_block [`WAYS - 1 : 0] data_way; // 32 KB Data Cache
   cache_block [`WAYS - 1 : 0] instruction_way; // 32 KB Instruction Cache
 
+  int x = 0;
+  always_ff @(posedge clk)
+    x++;
+
   cache_reserve reserver; // Is something making a call to cache right now??
   cache_reserve reserver_reg;
 
@@ -61,7 +65,7 @@ module cache
     output data_miss;
     output data_finished;
     output MemoryWord value;
-    begin
+    begin : read_data
       DoubleLine double_cells;
       WordLine word_cells;
       HalfLine half_cells;
@@ -71,15 +75,17 @@ module cache
       
       value = 0;
 
-
       if (!waiting && !inserting)
         data_miss = 1;
       else
         data_miss = 0;
 
+
       for (int i = 0; i < `WAYS; i++) begin
         cache_block cb = fc_in[i];
         cache_line cl = cb[ca.index];
+
+        //$display("%3d - (CA) %x == %x (CL)\t\tValid - %1d\tWay - %1d", x, ca.tag, cl.tag, cl.valid, i);
 
         if (ca.tag == cl.tag && cl.valid) begin
           $display("*********DATA\ncache address  -  %x", ca);
@@ -175,6 +181,7 @@ module cache
       end
 
       cl = 0;
+      cl.tag = ca.tag;
       cl.valid = 1;
       cl.cache_cells = value;
 
