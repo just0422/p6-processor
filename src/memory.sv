@@ -53,7 +53,15 @@ module memory
                 lsq[j].category == LOAD &&
                 lsq[j].color > lsq[i].color) begin
                   lsq_register[j].value = lsq[i].value;
+                  lsq_register[i].ready = 1;
             end
+
+            // I think this'll break if lsq_head > lsq_tail
+            /*if (lsq[j].address == address &&
+                lsq[j].category == STORE &&
+                lsq[j].tag != tag &&
+                lsq[j].color > lsq[i].color)
+              break;*/
           end
         end
       end
