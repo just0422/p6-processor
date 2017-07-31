@@ -61,7 +61,7 @@ module cache
   logic waiting; // Waiting for memory response
   logic inserting; // Are we currently inserting into the cache
   logic evicting; // Am I evicting from memory
-  logic data_miss1, data_miss2, instruction_miss; // Did we miss in cache??
+  logic write_data_miss1, write_data_miss2, read_data_miss1, read_data_miss2, instruction_miss; // Did we miss in cache??
 
   task read_data;
     input Address address;
@@ -264,19 +264,19 @@ module cache
       if (mem_write1 && (!reserver_reg || reserver_reg.write1)) begin
         // Write to cache
         reserver = `WRITE1;
-        insert_data(data_write_address1, data_write1, memory_write_type1, data_miss1, data_way_reg);
+        insert_data(data_write_address1, data_write1, memory_write_type1, write_data_miss1, data_way_reg);
       end else if (mem_write2 && (!reserver_reg || reserver_reg.write2)) begin
         reserver = `WRITE2;
-        insert_data(data_write_address2, data_write2, memory_write_type2, data_miss2, data_way_reg);
+        insert_data(data_write_address2, data_write2, memory_write_type2, write_data_miss2, data_way_reg);
         //insert_data();
       end else if (mem_read1 && (!reserver_reg || reserver_reg.read1)) begin
         reserver = `READ1;
         // Send a data read request
-        read_data(data_read_address1, memory_read_type1, data_way, data_miss1, data_finished1, data_response1);
+      read_data(data_read_address1, memory_read_type1, data_way, read_data_miss1, data_finished1, data_response1);
       end else if (mem_read2 && (!reserver_reg || reserver_reg.write1)) begin
         reserver = `READ2;
         // Send a data read request
-        read_data(data_read_address2, memory_read_type2, data_way,  data_miss2, data_finished2, data_response2);
+        read_data(data_read_address2, memory_read_type2, data_way,  read_data_miss2, data_finished2, data_response2);
       end else if (instruction_read && (!reserver_reg || reserver_reg.iread)) begin// && !busy_register) begin
         reserver = `IREAD;
         // Check cache
@@ -317,12 +317,12 @@ module cache
       start_sending_out <= 0;
       // waiting <= 1;
     end
-    if (data_miss1) begin
+    if (read_data_miss1) begin
       bus_req <= data_read_address1 & `MEMORY_MASK;// + (current_request_offset * `CELLS_NEEDED_B);
       bus_reqtag <= `MEM_READ;
       bus_reqcyc <= 1;
       waiting <= 1;
-    end else if (data_miss2) begin
+    end else if (read_data_miss2) begin
       bus_req <= data_read_address2 & `MEMORY_MASK;// + (current_request_offset * `CELLS_NEEDED_B);
       bus_reqtag <= `MEM_READ;
       bus_reqcyc <= 1;

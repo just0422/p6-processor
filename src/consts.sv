@@ -2,6 +2,7 @@
 `define BLOCK_SIZE                  64
 `define BUS_DATA_WIDTH              64
 `define BUS_TAG_WIDTH               13
+`define BTB_SIZE                    4
 `define DATA_SIZE                   64
 `define DIRTY                       1
 `define IMMEDIATE_SIZE              64
@@ -9,7 +10,7 @@
 `define INDEX_SIZE_B                $clog2(`INDEX_SIZE - 1)
 `define INDEXES_PER_WAY             32
 `define INSTRUCTION_SIZE            32
-`define LSQ_SIZE                    4
+`define LSQ_SIZE                    `BTB_SIZE
 `define MEM_READ                    0'h1100
 `define MEM_WRITE                   0'h0100
 `define MEMORY_MASK                 64'hffffffffffffffC0
@@ -53,6 +54,23 @@ typedef logic [`CELLS_NEEDED - 1 : 0][`DOUBLE - 1 : 0]                DoubleLine
 typedef logic [`CELLS_NEEDED * 2 - 1 : 0][`WORD - 1 : 0]              WordLine;
 typedef logic [`CELLS_NEEDED * 4 - 1 : 0][`HALF - 1 : 0]              HalfLine;
 typedef logic [`CELLS_NEEDED * 8 - 1 : 0][`BYTE - 1 : 0]              ByteLine;
+
+
+typedef logic signed [`DATA_SIZE * 2 - 1 : 0]   DoubleWordSigned;
+typedef logic signed [`DATA_SIZE - 1 : 0]       MemoryWordSigned;
+typedef logic signed [`DATA_SIZE / 2 - 1 : 0]   HalfWordSigned;
+typedef logic unsigned [`DATA_SIZE * 2 - 1 : 0] DoubleWordUnsigned;
+typedef logic unsigned [`DATA_SIZE - 1 : 0]     MemoryWordUnsigned;
+typedef logic unsigned [`DATA_SIZE / 2 - 1 : 0] HalfWordUnsigned;
+
+typedef logic [`DATA_SIZE * 2 - 1 : 0]          DoubleWord;
+typedef logic [`DATA_SIZE - 1 : 0]              MemoryWord;
+typedef logic [`DATA_SIZE / 2 - 1 : 0]          HalfWord;
+typedef logic [`INSTRUCTION_SIZE - 1 : 0]       InstructionWord;
+typedef logic [`NUMBER_OF_REGISTERS_B - 1 : 0]  Register;
+typedef logic [`IMMEDIATE_SIZE - 1 : 0]         Immediate;
+
+
 
 // OFFSET bits will alawys be a multiple of 4
 // TAG SIZE + INDEX + OFFSET
@@ -98,7 +116,11 @@ typedef cache_block [`WAYS - 1 : 0] full_cache;
 
 
 
-
+typedef struct packed {
+  Address address;
+  Address jump_location;
+  MemoryWord instruction;
+} branch;
 
 
 
@@ -142,21 +164,6 @@ typedef struct packed {
 
 
 
-typedef logic signed [`DATA_SIZE * 2 - 1 : 0]   DoubleWordSigned;
-typedef logic signed [`DATA_SIZE - 1 : 0]       MemoryWordSigned;
-typedef logic signed [`DATA_SIZE / 2 - 1 : 0]   HalfWordSigned;
-typedef logic unsigned [`DATA_SIZE * 2 - 1 : 0] DoubleWordUnsigned;
-typedef logic unsigned [`DATA_SIZE - 1 : 0]     MemoryWordUnsigned;
-typedef logic unsigned [`DATA_SIZE / 2 - 1 : 0] HalfWordUnsigned;
-
-
-
-typedef logic [`DATA_SIZE * 2 - 1 : 0]          DoubleWord;
-typedef logic [`DATA_SIZE - 1 : 0]              MemoryWord;
-typedef logic [`DATA_SIZE / 2 - 1 : 0]          HalfWord;
-typedef logic [`INSTRUCTION_SIZE - 1 : 0]       InstructionWord;
-typedef logic [`NUMBER_OF_REGISTERS_B - 1 : 0]  Register;
-typedef logic [`IMMEDIATE_SIZE - 1 : 0]         Immediate;
 
 
 /////////////////////////////////////////////////////////////////////////////////
