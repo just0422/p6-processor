@@ -178,7 +178,10 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    if (!fetch_stall) begin
+    if (overwrite_pc) begin
+      pc <= next_pc;
+      cac_bp_reg <= 0;
+    end else if (!fetch_stall) begin
       cac_bp_reg <= { instruction_response, pc };
       pc <= pc + 4;
     end

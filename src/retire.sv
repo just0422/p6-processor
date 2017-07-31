@@ -37,7 +37,7 @@ module retire (
 
       if (rob_head.ready) begin
         rd = rob_head.rd;
-        value = rob_head.value;
+        value = rob_head.rd ? rob_head.value : 0;
         regwr = rob_head.ctrl_bits.regwr;
 
         rob_decrement = 1;
