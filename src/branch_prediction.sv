@@ -9,9 +9,31 @@ module branch_predictor
   output overwrite_pc
 );
 
+  branch [`BTB_SIZE - 1 : 0] btb;
+
   always_comb begin
-    next_pc = pc + 4;
     overwrite_pc = 0;
+    case (instruction[6:0]) // Op Code
+      7'b1100011: begin // Conditional Branch
+        if (btb[instruction % `BTB_SUZE].address == pc) begin
+        end else begin
+          next_pc = pc + {{52{i_resp[31]}}, i_resp[7], i_resp[30:25], i_resp[11:8], 1'b0};
+          btb[instruction % `BTB_SUZE] = { pc, instruction, next_pc }
+        end
+
+                    //target = pc + {{52{i_resp[31]}}, i_resp[7], i_resp[30:25], i_resp[11:8], 1'b0};
+                  end
+      7'b1100111: // jalr
+      7'b1101111: begin // Uncoditional Jump (JAL)
+                    overwrite_pc = 1;
+                    next_pc = + {{44{i_resp[31]}}, i_resp[19:12], i_resp[20], i_resp[30:21] , 1'b0};
+                  end
+      //7'b1110011: ecall_stall = i_resp[31:7] == 0;
+      default   : begin
+                    overwrite_pc = 0;
+                    next_pc = pc + 4;
+                  end
+    endcase
   end
 
 endmodule
