@@ -8,7 +8,7 @@ module alu (
 
   // Outputs
   output MemoryWord result,
-  output zero
+  output take_branch
 );
 
   always_comb begin
@@ -45,7 +45,7 @@ module alu (
     result_srlw = sourceAHS >> sourceBHU[4:0];
     result_sraw = sourceAHS >>> sourceBHU[4:0];
 
-    zero = 0;
+    take_branch = 0;
     case(ctrl_bits.aluop) 
       AND       :   result = sourceA & sourceB;
       OR        :   result = sourceA | sourceB;
@@ -65,12 +65,12 @@ module alu (
       DIVW,DIVUW:   result = { {32 {ctrl_bits.usign & result_divw[31] } }, result_divw[31:0] };
       REMW,REMUW:   result = { {32 {ctrl_bits.usign & result_remw[31] } }, result_remw[31:0] };
 
-      BEQ       :   zero = sourceA == sourceB;
-      BNE       :   zero = sourceA != sourceB;
-      BLT       :   zero = sourceA < sourceB;
-      BGE       :   zero = sourceA >= sourceB;
-      BLTU      :   zero = sourceAMU < sourceBMU;
-      BGEU      :   zero = sourceAMU >= sourceBMU;
+      BEQ       :   take_branch = sourceA == sourceB;
+      BNE       :   take_branch = sourceA != sourceB;
+      BLT       :   take_branch = sourceA < sourceB;
+      BGE       :   take_branch = sourceA >= sourceB;
+      BLTU      :   take_branch = sourceAMU < sourceBMU;
+      BGEU      :   take_branch = sourceAMU >= sourceBMU;
 
       SLT       :   result = ctrl_bits.usign ? sourceAMU < sourceBMU : sourceAMS < sourceBMS;
       SLTW      :   result = ctrl_bits.usign ? sourceAHU < sourceBHU : sourceAHS < sourceBHS;

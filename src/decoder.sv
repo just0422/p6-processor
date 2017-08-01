@@ -1,6 +1,8 @@
 module decoder
 (
   input [`INSTRUCTION_SIZE - 1: 0] instruction,
+  input branch_taken,
+
   output [`NUMBER_OF_REGISTERS - 1: 0] register_source_1,
   output [`NUMBER_OF_REGISTERS - 1: 0] register_source_2,
   output [`NUMBER_OF_REGISTERS - 1: 0] register_destination,
@@ -209,6 +211,7 @@ module decoder
                   end
       default   : ctrl.unsupported = 1;
     endcase
+    ctrl.branch_prediction = branch_taken;
     ctrl_bits = ctrl;
   end
 endmodule

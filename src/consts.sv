@@ -157,6 +157,8 @@ typedef struct packed {
   logic ucjump;                        // Unconditional Jump
   logic unsupported;                   // *Unsuppored Instruction
   logic usign;                         // Unsigned
+  logic branch_prediction;             // 1 = taken, 0 = not taken
+  logic flush;                         //
   alu_operation aluop;                 // ALU Operation
   memory_instruction_type memory_type; // Memory Instruction Type
 } control_bits;
@@ -173,12 +175,14 @@ typedef struct packed {
 typedef struct packed {
   InstructionWord instruction;
   MemoryWord pc;
+  logic branch_prediction;
 } cache_branchprediction_register;
 
 // Register between fetch and decode
 typedef struct packed {
   InstructionWord instruction;
   MemoryWord pc;
+  logic branch_prediction;
 } fetch_decode_register;
 
 // Register between decode and register fetch
@@ -215,6 +219,7 @@ typedef struct packed {
 
 typedef struct packed {
   int tag;
+  logic take_branch;
   MemoryWord result;
   MemoryWord data;
   control_bits ctrl_bits;
@@ -222,6 +227,7 @@ typedef struct packed {
 
 typedef struct packed {
   int tag;
+  logic take_branch;
   MemoryWord data; // For loads/results
   control_bits ctrl_bits;
 } memory_commit_register;

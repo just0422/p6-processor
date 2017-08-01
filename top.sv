@@ -44,7 +44,7 @@ module top
   int x = 0;
   always_ff @(posedge clk) begin
     x++;
-    if (x > 400)
+    if (x > 700)
       $finish;
   end
 
@@ -181,8 +181,9 @@ module top
     if (overwrite_pc) begin
       pc <= next_pc;
       cac_bp_reg <= 0;
+      overwrite_pc_register <= overwrite_pc;
     end else if (!fetch_stall) begin
-      cac_bp_reg <= { instruction_response, pc };
+      cac_bp_reg <= { instruction_response, pc, overwrite_pc_register };
       pc <= pc + 4;
     end
     else if (!frontend_stall)
@@ -193,6 +194,7 @@ module top
 
   /************************ BRANCH PREDICTION ************************/
   logic overwrite_pc; // Do we need to overwrite the PC??
+  logic overwrite_pc_register;
 
   // Branch Prediction
   branch_predictor predict (
@@ -226,6 +228,7 @@ module top
   decoder decode(
     // Input
     .instruction(fet_dec_reg.instruction),
+    .branch_taken(fet_dec_reg.branch_prediction),
 
     // Output
     .register_source_1(decode_rs1),
@@ -449,7 +452,7 @@ module top
   issue_execute_register iss_exe_reg_2;
   /***************************** EXECUTE ******************************/
   MemoryWord result1;
-  logic zero1;
+  logic take_branch1;
 
   alu alu1(
     // Inputs
@@ -459,12 +462,12 @@ module top
 
     // Outpus
     .result(result1),
-    .zero(zero1)
+    .take_branch(take_branch1)
   );
 
   always_ff @(posedge clk) begin
     if (!backend_stall)
-      exe_mem_reg_1 <= { iss_exe_reg_1.tag, result1, 
+      exe_mem_reg_1 <= { iss_exe_reg_1.tag, take_branch1, result1, 
                          iss_exe_reg_1.data, iss_exe_reg_1.ctrl_bits };
   end
 
@@ -520,7 +523,7 @@ module top
       memory_read_type1 <= exe_mem_reg_1.ctrl_bits.memory_type;
     end else if (!backend_stall) begin
 
-      mem_com_reg_1 <= { exe_mem_reg_1.tag, memory_data1, 
+      mem_com_reg_1 <= { exe_mem_reg_1.tag, exe_mem_reg_1.take_branch, memory_data1, 
                          exe_mem_reg_1.ctrl_bits };
 
       //mem_index = lsq_pointer;
@@ -582,6 +585,7 @@ module top
 
     // Inputs
     .data1(mem_com_reg_1.data),           .data2(mem_com_reg_2.data), 
+    .take_branch1(mem_com_reg_1.data),    .take_branch2(mem_com_reg_2.data),
     .tag1 (mem_com_reg_1.tag),            .tag2 (mem_com_reg_2.tag),
     .ctrl_bits1(mem_com_reg_1.ctrl_bits), .ctrl_bits2(mem_com_reg_2.ctrl_bits),
 

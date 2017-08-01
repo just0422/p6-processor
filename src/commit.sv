@@ -3,6 +3,7 @@ module commit (
   input clk, reset,
 
   input MemoryWord data1, data2,
+  input take_branch1, take_branch2,
   input int tag1, tag2,
   input control_bits ctrl_bits1, ctrl_bits2,
 
@@ -37,6 +38,9 @@ module commit (
         mte1.tag = tag1;
         mte1.in_rob = 1;
       end
+
+      if (ctrl_bits1.branch_prediction ^ take_branch1)
+        re1.ctrl_bits.flush = 1;
 
       re1.ready = 1; 
     end
