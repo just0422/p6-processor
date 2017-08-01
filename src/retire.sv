@@ -23,7 +23,6 @@ module retire (
 );
 
   always_comb begin
-    if (!retire_stall) begin
       rd = 0;
       value = 0;
       re = 0;
@@ -35,6 +34,7 @@ module retire (
       le_size = 0;
       lsq_decrement = 0;
 
+    if (!retire_stall) begin
       if (rob_head.ready) begin
         rd = rob_head.rd;
         value = rob_head.rd ? rob_head.value : 0;
