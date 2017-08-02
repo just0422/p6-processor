@@ -207,7 +207,10 @@ module top
 
     // Outputs
     .next_pc(next_pc),
-    .overwrite_pc(overwrite_pc)
+    .overwrite_pc(overwrite_pc),
+
+    .flush(flush),
+    .retire_instruction(retire_re.instruction)
   );
   
 

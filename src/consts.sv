@@ -117,9 +117,10 @@ typedef cache_block [`WAYS - 1 : 0] full_cache;
 
 
 typedef struct packed {
+  logic taken;
+  MemoryWord instruction;
   Address address;
   Address jump_location;
-  MemoryWord instruction;
 } branch;
 
 

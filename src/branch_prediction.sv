@@ -6,7 +6,10 @@ module branch_predictor
   input [`ADDRESS_SIZE - 1 : 0] pc,
   input [`INSTRUCTION_SIZE - 1 : 0] instruction,
   output [`ADDRESS_SIZE - 1 : 0] next_pc,
-  output overwrite_pc
+  output overwrite_pc,
+  
+  input flush,
+  input InstructionWord retire_instruction
 );
 
   branch [`BTB_SIZE - 1 : 0] btb, btb_register;
@@ -16,9 +19,12 @@ module branch_predictor
     case (instruction[6:0]) // Op Code
       7'b1100011: begin // Conditional Branch
                     if (btb_register[instruction % `BTB_SIZE].address == pc) begin
+                      next_pc = btb_register[retire_instruction].taken ? 
+                                            btb_register[retire_instruction].jump_location : 
+                                            btb_register[retire_instruction].address + 4;
                     end else begin
                       next_pc = pc + {{52{instruction[31]}}, instruction[7], instruction[30:25], instruction[11:8], 1'b0};
-                      btb[instruction % `BTB_SIZE] = { pc, instruction, next_pc };
+                      btb[instruction % `BTB_SIZE] = { 1'b1, instruction, pc, next_pc };
                     end
 
                     //target = pc + {{52{instruction[31]}}, instruction[7], instruction[30:25], instruction[11:8], 1'b0};
@@ -38,5 +44,11 @@ module branch_predictor
 
   always_ff @(posedge clk)
     btb_register <= btb;
+
+  always_ff @(posedge clk) begin
+    if (flush && btb_register[retire_instruction % `BTB_SIZE].instruction == retire_instruction)
+      btb_register[retire_instruction].taken <= !btb_register[retire_instruction].taken;
+
+  end
 
 endmodule
