@@ -350,17 +350,27 @@ module top
 
     if (flush) begin
       for (int i = 0; i < `ROB_SIZE; i++) begin
-        rob[i] = 0;
-        rob[i].tag = i + 1;
+        rob[i] <= 0;
+        rob[i].tag <= i + 1;
       end
+      rob_head <= 1;
+      rob_tail <= 1;
+      rob_count <= 0;
 
       for (int i = 0; i < `LSQ_SIZE; i++) begin
-        lsq[i] = 0;
+        lsq[i] <= 0;
       end
+      lsq_head <= 1;
+      lsq_tail <= 1;
+      lsq_count <= 0;
       
       for (int i = 0; i < `RS_SIZE; i++) begin
-        res_stations[i] = 0;
-        res_stations[i].id = i + 1;
+        res_stations[i] <= 0;
+        res_stations[i].id <= i + 1;
+      end
+
+      for (int i = 0; i < `NUMBER_OF_REGISTERS; i++) begin
+        map_table[i] <= 0;
       end
     end else begin
       if (!backend_stall) begin
@@ -689,8 +699,7 @@ module top
   logic write_regwr;
   always_ff @(posedge clk) begin
     //lsq_dec <= 0;
-    write_rd <= 0;
-    write_data <= 0;
+    write_rd <= 0; write_data <= 0;
     write_regwr <= 0;
     //victim <= 0;  // HELP: DO I need this or does the Victim hang around until changed??
 
@@ -714,10 +723,12 @@ module top
 
       rob[rob_head - 1] <= 0;
       rob[rob_head - 1].tag <= retire_re.tag;
-
-      rob_head <= rob_head % `ROB_SIZE + 1;
-      if (rob_increment ^ rob_decrement && rob_decrement)
-        rob_count <= rob_count - 1;
+      
+      if (!flush) begin
+        rob_head <= rob_head % `ROB_SIZE + 1;
+        if (rob_increment ^ rob_decrement && rob_decrement)
+          rob_count <= rob_count - 1;
+      end
 
       //if (retire_re.tag == retire_le.tag) begin
       //  lsq_dec <= lsq_decrement;
@@ -726,10 +737,11 @@ module top
       if (lsq_decrement) begin
         lsq[lsq_head - 1] <= 0;
 
-        lsq_head <= lsq_head % `LSQ_SIZE + 1;
-
-        if(lsq_increment ^ lsq_decrement && lsq_decrement)
-          lsq_count <= lsq_count - 1;
+        if (!flush) begin
+          lsq_head <= lsq_head % `LSQ_SIZE + 1;
+          if(lsq_increment ^ lsq_decrement && lsq_decrement)
+            lsq_count <= lsq_count - 1;
+        end
 
         if (retire_le.category == STORE) begin
           mem_write <= 1;

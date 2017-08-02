@@ -92,7 +92,7 @@ module scheduler
     // Unique Cases
     // Is the PC one of the operands??
     if (ctrl_bits.apc) begin
-      rs_val_1 = (regs_dis_reg.instruction[5]) ? 0 : 1; // TODO: DANGER: PC + 4 should substitute 1
+      rs_val_1 = regs_dis_reg.pc;
       rs_tag_1 = 0;
     end
     
