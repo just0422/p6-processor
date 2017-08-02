@@ -19,7 +19,10 @@ module retire (
   output rob_decrement,
   output lsq_decrement,
 
-  output victim
+  output victim, 
+  
+  output flush,
+  output Address jump_to
 );
 
   always_comb begin
@@ -33,6 +36,7 @@ module retire (
       le = 0;
       le_size = 0;
       lsq_decrement = 0;
+      flush = 0;
 
     if (!retire_stall) begin
       if (rob_head.ready) begin
@@ -42,6 +46,17 @@ module retire (
 
         rob_decrement = 1;
         re = rob_head;
+
+        if (rob_head.ctrl_bits.regwr && rob_head.ctrl_bits.ucjump) begin
+          flush = 1;
+          jump_to = value;
+          value = rob_head.pc + 4;
+        end
+
+        if (rob_head.ctrl_bits.cjump && rob_head.ctrl_bits.flush) begin
+          flush = 1;
+          jump_to = value;
+        end
 
         if (rob_head.tag == lsq_head.tag) begin
           le = lsq_head;

@@ -122,8 +122,19 @@ module scheduler
       bypass_rs = 0;
     // Skip reservation stations for JAL
     end else if (ctrl_bits.ucjump) begin
-      rse = 0;
-      bypass_rs = 1; // Do we need to skip reservation stations
+      if (ctrl_bits.alusrc) begin
+        rse.busy = 1;
+        rse.tag = rob_tail;
+        rse.ctrl_bits = ctrl_bits;
+        rse.value_1 = rs_val_1;
+        rse.tag_1 = rs_tag_1;
+        rse.value_2 = 0;
+        rse.tag_1 = 0;
+        rse.imm = regs_dis_reg.imm;
+      end else begin
+        rse = 0;
+        bypass_rs = 1; // Do we need to skip reservation stations
+      end
     // Otherwaise behave as normal
     end else if (ctrl_bits) begin
       rse.tag = rob_tail;
@@ -170,7 +181,8 @@ module scheduler
       rob_full = 1;
     end
 
-
+    re.pc = regs_dis_reg.pc;
+    re.instruction = regs_dis_reg.instruction;
     // Empty rob entry if it's unsupported
     if (ctrl_bits.unsupported)
       re.ready = 1;
@@ -182,8 +194,10 @@ module scheduler
     end else if (ctrl_bits.ucjump) begin
       re.ctrl_bits = ctrl_bits;
       re.rd = regs_dis_reg.rd;
-      re.value = regs_dis_reg.pc + 4;
-      re.ready = 1;
+      if (!ctrl_bits.alusrc) begin
+        re.value = regs_dis_reg.pc + 4;
+        re.ready = 1;
+      end
     // Otherwise behave as normal
     end else if (ctrl_bits) begin
       re.rd = regs_dis_reg.rd;

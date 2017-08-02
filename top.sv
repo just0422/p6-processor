@@ -178,15 +178,16 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    if (overwrite_pc) begin
+    if (flush) begin
+      pc <= jumpto;
+      cac_bp_reg <= 0;
+    end else if (overwrite_pc) begin
       pc <= next_pc;
       cac_bp_reg <= 0;
-      overwrite_pc_register <= overwrite_pc;
     end else if (!fetch_stall) begin
-      cac_bp_reg <= { instruction_response, pc, overwrite_pc_register };
+      cac_bp_reg <= { instruction_response, pc };
       pc <= pc + 4;
-    end
-    else if (!frontend_stall)
+    end else if (!frontend_stall)
       cac_bp_reg <= 0;
   end
 
@@ -194,7 +195,6 @@ module top
 
   /************************ BRANCH PREDICTION ************************/
   logic overwrite_pc; // Do we need to overwrite the PC??
-  logic overwrite_pc_register;
 
   // Branch Prediction
   branch_predictor predict (
@@ -213,8 +213,10 @@ module top
 
   // Assign next PC value 
   always_ff @(posedge clk) begin
-    if (!frontend_stall) 
-      fet_dec_reg <= cac_bp_reg;
+    if (flush)
+      fet_dec_reg <= 0;
+    else if (!frontend_stall) 
+      fet_dec_reg <= { cac_bp_reg.instruction, cac_bp_reg.pc , overwrite_pc };
   end
   
   fetch_decode_register fet_dec_reg;
@@ -239,7 +241,9 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    if (!frontend_stall)
+    if (flush)
+      dec_regs_reg <= 0;
+    else if (!frontend_stall)
       dec_regs_reg <= {fet_dec_reg.instruction,
                        fet_dec_reg.pc, 
                        decode_rs1, decode_rs2, decode_rd, decode_imm, 
@@ -270,7 +274,9 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    if (!frontend_stall)
+    if (flush)
+      regs_dis_reg <= 0;
+    else if (!frontend_stall)
       regs_dis_reg <= { dec_regs_reg.instruction, dec_regs_reg.pc,
                         dec_regs_reg.rs1, dec_regs_reg.rs2, dec_regs_reg.rd, 
                         rs1_value, rs2_value, dec_regs_reg.imm,
@@ -342,55 +348,70 @@ module top
   always_ff @(posedge clk) begin
     int rob_tag;
 
-    if (!backend_stall) begin
-      lsq <= lsq_register;
-    end
-    //dis_le <= 0;
-    //lsq_inc <= 0;
-    if (!frontend_stall) begin
-      // add to the rob
-      if (dispatch_re) begin
-        $display("%d - Hello World!  @ %x - %x", x, regs_dis_reg.pc, regs_dis_reg.instruction);
-        rob_tag = rob[rob_tail - 1].tag;
-        rob[rob_tail - 1] <= dispatch_re;
-        rob[rob_tail - 1].tag <= rob_tag;
-
-        rob_tail <= rob_tail % `ROB_SIZE + 1;
-        if (rob_increment ^ rob_decrement && rob_increment)
-          rob_count <= rob_count + 1;
-
+    if (flush) begin
+      for (int i = 0; i < `ROB_SIZE; i++) begin
+        rob[i] = 0;
+        rob[i].tag = i + 1;
       end
 
-      if (dispatch_rse) begin
-        res_stations[res_station_id] <= dispatch_rse;
-        res_stations[res_station_id].id <= res_station_id + 1;
+      for (int i = 0; i < `LSQ_SIZE; i++) begin
+        lsq[i] = 0;
       end
-
-      if (dispatch_mte) begin
-        map_table[dispatch_re.rd] <= dispatch_mte;
-      end
-
-      lsq <= lsq_register;
       
-      if (dispatch_le) begin
-        //dis_le <= dispatch_le;
-        //lsq_inc <= lsq_increment;
-        lsq[lsq_tail - 1] <= dispatch_le;
-        //lsq[0].color <= 1;
-        //lsq[1].color <= 2;
-        //lsq[2].color <= 12;
-        //lsq[3].color <= 13;
-        //lsq[lsq_tail - 1].color <= 10;
-
-        lsq_tail <= lsq_tail % `LSQ_SIZE + 1;
-        if(lsq_increment ^ lsq_decrement && lsq_increment)
-          lsq_count <= lsq_count + 1;
+      for (int i = 0; i < `RS_SIZE; i++) begin
+        res_stations[i] = 0;
+        res_stations[i].id = i + 1;
       end
+    end else begin
+      if (!backend_stall) begin
+        lsq <= lsq_register;
+      end
+      //dis_le <= 0;
+      //lsq_inc <= 0;
+      if (!frontend_stall) begin
+        // add to the rob
+        if (dispatch_re) begin
+          rob_tag = rob[rob_tail - 1].tag;
+          rob[rob_tail - 1] <= dispatch_re;
+          rob[rob_tail - 1].tag <= rob_tag;
+
+          rob_tail <= rob_tail % `ROB_SIZE + 1;
+          if (rob_increment ^ rob_decrement && rob_increment)
+            rob_count <= rob_count + 1;
+
+        end
+
+        if (dispatch_rse) begin
+          res_stations[res_station_id] <= dispatch_rse;
+          res_stations[res_station_id].id <= res_station_id + 1;
+        end
+
+        if (dispatch_mte) begin
+          map_table[dispatch_re.rd] <= dispatch_mte;
+        end
+
+        lsq <= lsq_register;
+        
+        if (dispatch_le) begin
+          //dis_le <= dispatch_le;
+          //lsq_inc <= lsq_increment;
+          lsq[lsq_tail - 1] <= dispatch_le;
+          //lsq[0].color <= 1;
+          //lsq[1].color <= 2;
+          //lsq[2].color <= 12;
+          //lsq[3].color <= 13;
+          //lsq[lsq_tail - 1].color <= 10;
+
+          lsq_tail <= lsq_tail % `LSQ_SIZE + 1;
+          if(lsq_increment ^ lsq_decrement && lsq_increment)
+            lsq_count <= lsq_count + 1;
+        end
+      end
+
+
+      if (memory_le && !backend_stall) 
+        lsq[memory_le_index - 1] <= memory_le;
     end
-
-
-    if (memory_le && !backend_stall) 
-      lsq[memory_le_index - 1] <= memory_le;
   end
 
 
@@ -416,8 +437,10 @@ module top
   endtask
 
   always_ff @(posedge clk) begin
-    capture_data (cdb1);
-    capture_data (cdb2);
+    if (!flush) begin
+      capture_data (cdb1);
+      capture_data (cdb2);
+    end
   end
 
   /****************************** ISSUE *******************************/
@@ -440,7 +463,10 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    if (!backend_stall) begin
+    if (flush) begin
+      iss_exe_reg_1 <= 0;
+      iss_exe_reg_2 <= 0;
+    end else if (!backend_stall) begin
       iss_exe_reg_1 <= { tag1, sourceA1, sourceB1, data1, ctrl_bits1 };
       iss_exe_reg_2 <= ie_reg2;
       if (rs_id1 > 0)
@@ -466,7 +492,9 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    if (!backend_stall)
+    if (flush) begin
+      exe_mem_reg_1 <= 0;
+    end else if (!backend_stall)
       exe_mem_reg_1 <= { iss_exe_reg_1.tag, take_branch1, result1, 
                          iss_exe_reg_1.data, iss_exe_reg_1.ctrl_bits };
   end
@@ -513,7 +541,11 @@ module top
     //mem_index = 0;
     //mem_le = 0;
     data_ready1 = 0;
-    if (data_finished1) begin
+    if (flush) begin
+      mem_com_reg_1 <= 0;
+      mem_read1 <= 0;
+      data_read_address1 <= 0;
+    end else if (data_finished1) begin
       cache_data1 = data_response1;
       data_ready1 = 1;
       mem_read1 <= 0;
@@ -522,7 +554,6 @@ module top
       mem_read1 <= 1;
       memory_read_type1 <= exe_mem_reg_1.ctrl_bits.memory_type;
     end else if (!backend_stall) begin
-
       mem_com_reg_1 <= { exe_mem_reg_1.tag, exe_mem_reg_1.take_branch, memory_data1, 
                          exe_mem_reg_1.ctrl_bits };
 
@@ -600,7 +631,10 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    if (!backend_stall) begin
+    if (flush) begin
+      cdb1 <= 0;
+      cdb2 <= 0;
+    end else if (!backend_stall) begin
       cdb1 <= { cdb_tag1, cdb_value1 };
       cdb2 <= { cdb_tag2, cdb_value2 };
       
@@ -614,6 +648,8 @@ module top
 
   
   /***************************** RETIRE *******************************/
+  Address jumpto;
+  logic flush;
   logic retire_regwr, victimized;
   Register retire_rd;
   MemoryWord retire_value;
@@ -642,7 +678,10 @@ module top
     .le_size(retire_le_size),
     .rob_decrement(rob_decrement),
     .lsq_decrement(lsq_decrement),
-    .victim(victimized)
+    .victim(victimized),
+
+    .flush(flush),
+    .jump_to(jumpto)
   );
  
   Register write_rd;
@@ -658,6 +697,7 @@ module top
     if (write_finished)
       mem_write <= 0;
     if (retire_re.ready && !retire_stall) begin
+      $display("%d - %x - %x", x, retire_re.pc, retire_re.instruction);
       if (retire_regwr) begin
         write_rd <= retire_rd;
         write_data <= retire_value;

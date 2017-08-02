@@ -175,7 +175,6 @@ typedef struct packed {
 typedef struct packed {
   InstructionWord instruction;
   MemoryWord pc;
-  logic branch_prediction;
 } cache_branchprediction_register;
 
 // Register between fetch and decode
@@ -245,6 +244,8 @@ typedef struct packed {
 // ROB Entry
 typedef struct packed {
   logic ready;
+  Address pc;
+  InstructionWord instruction;
   int tag;
   Register rd;
   MemoryWord value;

@@ -34,7 +34,8 @@ module commit (
       mte1 = 0;
 
       if (ctrl_bits1.regwr) begin
-        re1.value = data1;
+        if (!ctrl_bits1.cjump)
+          re1.value = data1;
         mte1.tag = tag1;
         mte1.in_rob = 1;
       end
