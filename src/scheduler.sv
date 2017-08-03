@@ -30,7 +30,8 @@ module scheduler
   output rs_entry rse,
   output lsq_entry le,
   
-  output int station_id,
+  output ResSize station_id,
+  output RobSize tag,
   output logic bypass_rs, // Should I skip the Reservation stations??
   output logic rob_full,
   output logic rob_increment, // Will we need to insert into rob
@@ -47,7 +48,7 @@ module scheduler
     input Register register_source;
     input MemoryWord register_value;
     output MemoryWord rs_value;
-    output int rs_tag;
+    output ResSize rs_tag;
     begin
       rs_value = 0;
       rs_tag = 0;
@@ -76,7 +77,7 @@ module scheduler
   // Create Reservation station entry
   always_comb begin
     MemoryWord rs_val_1 = 0, rs_val_2 = 0;
-    int rs_tag_1 = 0, rs_tag_2 = 0;
+    ResSize rs_tag_1 = 0, rs_tag_2 = 0;
     control_bits ctrl_bits = regs_dis_reg.ctrl_bits;
     rse = 0;
     
@@ -169,6 +170,7 @@ module scheduler
   // Create ROB Entries
   always_comb begin
     control_bits ctrl_bits = regs_dis_reg.ctrl_bits;
+    tag = rob[rob_tail - 1].tag;
     re = 0;
     
     rob_increment = 0;

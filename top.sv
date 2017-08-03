@@ -52,7 +52,7 @@ module top
   initial begin
     $display("Initializing top, entry point = 0x%x", entry);
 
-    for (int i = 0; i < `ROB_SIZE; i++) begin
+    for (RobSize i = 0; i < `ROB_SIZE; i++) begin
       rob[i] = 0;
       rob[i].tag = i + 1;
     end
@@ -61,7 +61,7 @@ module top
       lsq[i] = 0;
     end
     
-    for (int i = 0; i < `RS_SIZE; i++) begin
+    for (RobSize i = 0; i < `RS_SIZE; i++) begin
       res_stations[i] = 0;
       res_stations[i].id = i + 1;
     end
@@ -290,9 +290,9 @@ module top
   /*********************** INSTRUCTION DISPATCH ***********************/
   logic nop; // Did the front end stall??
   logic rob_increment, rob_decrement, rob_full;
-  int rob_head, rob_tail;
-  int rob_count;
-  int res_station_id;
+  RobSize rob_head, rob_tail;
+  RobSize rob_count, dispatch_tag;
+  ResSize res_station_id;
 
   logic lsq_increment, lsq_decrement, lsq_full;
   int lsq_head, lsq_tail;
@@ -341,6 +341,7 @@ module top
     .le(dispatch_le),
 
     .station_id(res_station_id),
+    .tag(dispatch_tag),
     .bypass_rs(bypass_rs),
     .rob_full(rob_full),
     .rob_increment(rob_increment), // Does an instruction need to be inserted into the rob;
@@ -349,8 +350,6 @@ module top
   );
 
   always_ff @(posedge clk) begin
-    int rob_tag;
-
     if (flush) begin
       for (int i = 0; i < `ROB_SIZE; i++) begin
         rob[i] <= 0;
@@ -384,9 +383,8 @@ module top
       if (!frontend_stall) begin
         // add to the rob
         if (dispatch_re) begin
-          rob_tag = rob[rob_tail - 1].tag;
           rob[rob_tail - 1] <= dispatch_re;
-          rob[rob_tail - 1].tag <= rob_tag;
+          rob[rob_tail - 1].tag <= dispatch_tag;
 
           rob_tail <= rob_tail % `ROB_SIZE + 1;
           if (rob_increment ^ rob_decrement && rob_increment)

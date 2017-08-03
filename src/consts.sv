@@ -167,7 +167,8 @@ typedef struct packed {
 
 
 
-
+typedef logic [$clog2(`ROB_SIZE) : 0] RobSize;
+typedef logic [$clog2(`RS_SIZE) : 0] ResSize;
 
 /////////////////////////////////////////////////////////////////////////////////
 /********************************** REGISTERS **********************************/
@@ -210,7 +211,7 @@ typedef struct packed {
 } registers_dispatch_register;
 
 typedef struct packed {
-  int tag;
+  RobSize tag;
   MemoryWord sourceA;
   MemoryWord sourceB;
   MemoryWord data; // For stores
@@ -218,7 +219,7 @@ typedef struct packed {
 } issue_execute_register;
 
 typedef struct packed {
-  int tag;
+  RobSize tag;
   logic take_branch;
   MemoryWord result;
   MemoryWord data;
@@ -226,7 +227,7 @@ typedef struct packed {
 } execute_memory_register;
 
 typedef struct packed {
-  int tag;
+  RobSize tag;
   logic take_branch;
   MemoryWord data; // For loads/results
   control_bits ctrl_bits;
@@ -236,9 +237,10 @@ typedef struct packed {
 /////////////////////////////////////////////////////////////////////////////////
 /********************************** HARDWARE ***********************************/
 /////////////////////////////////////////////////////////////////////////////////
+
 typedef struct packed {
   logic in_rob;
-  int tag;
+  RobSize tag;
 } map_table_entry;
 
 
@@ -247,7 +249,7 @@ typedef struct packed {
   logic ready;
   Address pc;
   InstructionWord instruction;
-  int tag;
+  RobSize tag;
   Register rd;
   MemoryWord value;
   control_bits ctrl_bits;
@@ -256,10 +258,10 @@ typedef struct packed {
 // Reservation Station Entry
 typedef struct packed {
   logic busy;
-  int id;
-  int tag;
-  int tag_1;
-  int tag_2;
+  ResSize id;
+  RobSize tag;
+  RobSize tag_1;
+  RobSize tag_2;
   MemoryWord value_1;
   MemoryWord value_2;
   MemoryWord imm;
@@ -269,7 +271,7 @@ typedef struct packed {
 // Load/Story Queue Entry
 typedef struct packed {
   logic ready;
-  int tag;
+  RobSize tag;
   longint color;
   Address address;
   MemoryWord value;
@@ -278,7 +280,7 @@ typedef struct packed {
 } lsq_entry;
 
 typedef struct packed {
-  int tag;
+  RobSize tag;
   MemoryWord value;
 } cdb;
 

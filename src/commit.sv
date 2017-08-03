@@ -4,7 +4,7 @@ module commit (
 
   input MemoryWord data1, data2,
   input take_branch1, take_branch2,
-  input int tag1, tag2,
+  input RobSize tag1, tag2,
   input control_bits ctrl_bits1, ctrl_bits2,
 
   input rob_entry rob_entry1,
