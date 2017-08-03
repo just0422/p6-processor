@@ -47,7 +47,7 @@ module retire (
         rob_decrement = 1;
         re = rob_head;
 
-        if (rob_head.ctrl_bits.regwr && rob_head.ctrl_bits.ucjump) begin
+        if (rob_head.ctrl_bits.regwr && rob_head.ctrl_bits.ucjump && rob_head.ctrl_bits.alusrc) begin
           flush = 1;
           jump_to = value;
           value = rob_head.pc + 4;

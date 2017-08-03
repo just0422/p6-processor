@@ -44,7 +44,7 @@ module top
   int x = 0;
   always_ff @(posedge clk) begin
     x++;
-    if (x > 700)
+    if (x > 200)
       $finish;
   end
 
@@ -209,6 +209,7 @@ module top
     .next_pc(next_pc),
     .overwrite_pc(overwrite_pc),
 
+    // Inputs
     .flush(flush),
     .retire_instruction(retire_re.instruction)
   );
