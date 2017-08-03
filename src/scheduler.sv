@@ -225,12 +225,11 @@ module scheduler
     // TODO: check this to see if the logic is correct
     else if (ctrl_bits.ucjump && ctrl_bits.alusrc)begin
       mte.tag = rob[rob_tail - 1].tag;
-      mte.in_rob = 1;
     // No map table entry needed for JAL
     end else if (ctrl_bits.ucjump)
       mte = 0;
     // Otherwise behave as normal
-    else if (ctrl_bits) begin
+    else if (ctrl_bits.regwr) begin
       mte.tag = rob[rob_tail - 1].tag;
       mte.in_rob = 0;
     end
