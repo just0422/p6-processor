@@ -49,13 +49,13 @@ module retire (
 
         if (rob_head.ctrl_bits.regwr && rob_head.ctrl_bits.ucjump && rob_head.ctrl_bits.alusrc) begin
           flush = 1;
-          jump_to = value;
+          jump_to = rob_head.value;
           value = rob_head.pc + 4;
         end
 
         if (rob_head.ctrl_bits.cjump && rob_head.ctrl_bits.flush) begin
           flush = 1;
-          jump_to = value;
+          jump_to = rob_head.value;
         end
 
         if (rob_head.tag == lsq_head.tag) begin
