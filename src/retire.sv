@@ -36,7 +36,9 @@ module retire (
       le = 0;
       le_size = 0;
       lsq_decrement = 0;
+
       flush = 0;
+      jump_to = 0;
 
     if (!retire_stall) begin
       if (rob_head.ready) begin
