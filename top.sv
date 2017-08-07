@@ -627,10 +627,10 @@ module top
     .clk(clk), .reset(reset),
 
     // Inputs
-    .data1(mem_com_reg_1.data),           .data2(mem_com_reg_2.data), 
-    .take_branch1(mem_com_reg_1.data),    .take_branch2(mem_com_reg_2.data),
-    .tag1 (mem_com_reg_1.tag),            .tag2 (mem_com_reg_2.tag),
-    .ctrl_bits1(mem_com_reg_1.ctrl_bits), .ctrl_bits2(mem_com_reg_2.ctrl_bits),
+    .data1(mem_com_reg_1.data),                 .data2(mem_com_reg_2.data), 
+    .take_branch1(mem_com_reg_1.take_branch),   .take_branch2(mem_com_reg_2.take_branch),
+    .tag1 (mem_com_reg_1.tag),                  .tag2 (mem_com_reg_2.tag),
+    .ctrl_bits1(mem_com_reg_1.ctrl_bits),       .ctrl_bits2(mem_com_reg_2.ctrl_bits),
 
     .rob_entry1(rob[mem_com_reg_1.tag - 1]),
     

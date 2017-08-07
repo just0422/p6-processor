@@ -40,7 +40,7 @@ module commit (
         mte1.in_rob = 1;
       end
 
-      if (ctrl_bits1.branch_prediction ^ take_branch1)
+      if (ctrl_bits1.cjump && (ctrl_bits1.branch_prediction ^ take_branch1))
         re1.ctrl_bits.flush = 1;
 
       re1.ready = 1; 
