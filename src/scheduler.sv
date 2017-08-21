@@ -61,10 +61,10 @@ module scheduler
       else if (cdb2.tag && cdb2.tag == map_table[register_source].tag)
         rs_value = cdb2.value;
       // Check for it in the ROB
-      else if (victim.regstr == register_source && register_source)
-        rs_value = victim.value;
       else if (map_table[register_source].tag && map_table[register_source].in_rob)
         rs_value = rob[map_table[register_source].tag - 1].value;
+      else if (!map_table[register_source].tag && victim.regstr == register_source)
+        rs_value = victim.value;
       // Check for it in the register file
       else if (!map_table[register_source].tag)
         rs_value = register_value;
@@ -206,7 +206,7 @@ module scheduler
       re.ctrl_bits = ctrl_bits;
 
       if (ctrl_bits.cjump)
-        re.value = 1; // TODO: DANGER: PC + 4 should be here
+        re.value = regs_dis_reg.jumpto; // TODO: DANGER: PC + 4 should be here
     end
   end
 

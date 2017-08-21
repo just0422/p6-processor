@@ -36,8 +36,10 @@ module commit (
       if (ctrl_bits1.regwr) begin
         if (!ctrl_bits1.cjump)
           re1.value = data1;
-        mte1.tag = tag1;
-        mte1.in_rob = 1;
+        if(re1.rd) begin
+          mte1.tag = tag1;
+          mte1.in_rob = 1;
+        end 
       end
 
       if (ctrl_bits1.cjump && (ctrl_bits1.branch_prediction ^ take_branch1))

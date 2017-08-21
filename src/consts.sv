@@ -118,7 +118,7 @@ typedef cache_block [`WAYS - 1 : 0] full_cache;
 
 typedef struct packed {
   logic taken;
-  MemoryWord instruction;
+  InstructionWord instruction;
   Address address;
   Address jump_location;
 } branch;
@@ -148,20 +148,20 @@ typedef enum logic [5:0] {
 } alu_operation;
 
 typedef struct packed {
-  logic alusrc;                        // ALU source (rs2 or imm)
-  logic apc;                           // Adding PC
-  logic cjump;                         // Conditional Jump
-  logic ecall;                         // e-call
-  logic memtoreg;                      // Memory To Register
-  logic memwr;                         // Memory Write
-  logic regwr;                         // Register Write
-  logic ucjump;                        // Unconditional Jump
-  logic unsupported;                   // *Unsuppored Instruction
-  logic usign;                         // Unsigned
-  logic branch_prediction;             // 1 = taken, 0 = not taken
-  logic flush;                         //
-  alu_operation aluop;                 // ALU Operation
-  memory_instruction_type memory_type; // Memory Instruction Type
+  logic alusrc;                        // ALU source (rs2 or imm)       21
+  logic apc;                           // Adding PC                     20
+  logic cjump;                         // Conditional Jump              19
+  logic ecall;                         // e-call                        18
+  logic memtoreg;                      // Memory To Register            17
+  logic memwr;                         // Memory Write                  16
+  logic regwr;                         // Register Write                15
+  logic ucjump;                        // Unconditional Jump            14
+  logic unsupported;                   // *Unsuppored Instruction       13
+  logic usign;                         // Unsigned                      12
+  logic branch_prediction;             // 1 = taken, 0 = not taken      11
+  logic flush;                         //                               10
+  alu_operation aluop;                 // ALU Operation                  9 | 4
+  memory_instruction_type memory_type; // Memory Instruction Type        3 | 0
 } control_bits;
 
 
@@ -182,14 +182,16 @@ typedef struct packed {
 // Register between fetch and decode
 typedef struct packed {
   InstructionWord instruction;
-  MemoryWord pc;
+  Address pc;
   logic branch_prediction;
+  Address jumpto;
 } fetch_decode_register;
 
 // Register between decode and register fetch
 typedef struct packed {
   InstructionWord instruction;
-  MemoryWord pc;
+  Address pc;
+  Address jumpto;
 	Register rs1;
   Register rs2;
   Register rd;
@@ -201,6 +203,7 @@ typedef struct packed {
 typedef struct packed {
   InstructionWord instruction;
   MemoryWord pc;
+  Address jumpto;
 	Register rs1;
   Register rs2;
   Register rd;

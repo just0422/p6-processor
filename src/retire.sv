@@ -57,7 +57,7 @@ module retire (
 
         if (rob_head.ctrl_bits.cjump && rob_head.ctrl_bits.flush) begin
           flush = 1;
-          jump_to = rob_head.value;
+          jump_to = rob_head.ctrl_bits.branch_prediction ? rob_head.pc + 4 : rob_head.value;
         end
 
         if (rob_head.tag == lsq_head.tag) begin

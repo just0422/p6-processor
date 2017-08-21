@@ -181,7 +181,7 @@ module top
     if (flush) begin
       pc <= jumpto;
       cac_bp_reg <= 0;
-    end else if (overwrite_pc) begin
+    end else if (overwrite_pc && !frontend_stall) begin
       pc <= next_pc;
       cac_bp_reg <= 0;
     end else if (!fetch_stall) begin
@@ -202,6 +202,7 @@ module top
     .clk(clk), .reset(reset),
 
     // Inputs
+    .frontend_stall(frontend_stall),
     .pc(cac_bp_reg.pc),
     .instruction(cac_bp_reg.instruction),
 
@@ -211,7 +212,8 @@ module top
 
     // Inputs
     .flush(flush),
-    .retire_instruction(retire_re.instruction)
+    .retire_instruction(retire_re.instruction),
+    .retire_pc(retire_re.pc)
   );
   
 
@@ -220,7 +222,7 @@ module top
     if (flush)
       fet_dec_reg <= 0;
     else if (!frontend_stall) 
-      fet_dec_reg <= { cac_bp_reg.instruction, cac_bp_reg.pc , overwrite_pc };
+      fet_dec_reg <= { cac_bp_reg.instruction, cac_bp_reg.pc , overwrite_pc, next_pc};
   end
   
   fetch_decode_register fet_dec_reg;
@@ -250,6 +252,7 @@ module top
     else if (!frontend_stall)
       dec_regs_reg <= {fet_dec_reg.instruction,
                        fet_dec_reg.pc, 
+                       fet_dec_reg.jumpto,
                        decode_rs1, decode_rs2, decode_rd, decode_imm, 
                        decode_ctrl_bits};
   end
@@ -281,7 +284,7 @@ module top
     if (flush)
       regs_dis_reg <= 0;
     else if (!frontend_stall)
-      regs_dis_reg <= { dec_regs_reg.instruction, dec_regs_reg.pc,
+      regs_dis_reg <= { dec_regs_reg.instruction, dec_regs_reg.pc, dec_regs_reg.jumpto,
                         dec_regs_reg.rs1, dec_regs_reg.rs2, dec_regs_reg.rd, 
                         rs1_value, rs2_value, dec_regs_reg.imm,
                         dec_regs_reg.ctrl_bits };
@@ -652,7 +655,7 @@ module top
       
       if (commit_re1)
         rob[commit_re1.tag - 1] <= commit_re1;
-      if (commit_re1.ctrl_bits.regwr)
+      if (commit_re1.ctrl_bits.regwr && map_table[commit_re1.rd].tag == commit_re1.tag)
         map_table[commit_re1.rd] <= commit_mte1;
     end
   end
@@ -714,7 +717,8 @@ module top
         write_data <= retire_value;
         write_regwr <= retire_regwr;
 
-        register_file[retire_rd] <= retire_value;
+        if (retire_rd)
+          register_file[retire_rd] <= retire_value;
         
 
         // HMMMMM Will a later instruction entering the map table make this useless??
