@@ -38,10 +38,10 @@ module cache
   input memory_instruction_type memory_read_type1,   memory_read_type2,
 
   // Data Write Request
-  input                         mem_write1,          mem_write2,
-  input Address                 data_write_address1, data_write_address2,
-  input MemoryWord              data_write1,         data_write2,
-  input memory_instruction_type memory_write_type1,  memory_write_type2,
+  input                         mem_write,
+  input Address                 data_write_address,
+  input MemoryWord              data_write,
+  input memory_instruction_type memory_write_type,
   output                        write_finished
   //output data_busy
 );
@@ -61,7 +61,7 @@ module cache
   logic waiting; // Waiting for memory response
   logic inserting; // Are we currently inserting into the cache
   logic evicting; // Am I evicting from memory
-  logic write_data_miss1, write_data_miss2, read_data_miss1, read_data_miss2, instruction_miss; // Did we miss in cache??
+  logic write_data_miss, read_data_miss1, read_data_miss2, instruction_miss; // Did we miss in cache??
 
 
   /****************************/
@@ -84,6 +84,8 @@ module cache
       cache_address ca = address;
       
       value = 0;
+      data_finished = 0;
+
       write_way = -1;
 
       if (!waiting && !inserting)
@@ -255,21 +257,21 @@ module cache
     output data_miss;
     begin
       int write_way;
-      logic data_finished = 0; 
+      logic write_data_finished = 0; 
       WordMemory words;
       HalfMemory halfs;
       ByteMemory bytes;
       MemoryWord response = 0;
       cache_address ca = address;
 
-      read_data(address, LD, data_way, data_miss, data_finished, response, write_way);
+      read_data(address, LD, data_way, data_miss, write_data_finished, response, write_way);
       words = (response & 32'hFFFFFFFF << ((!ca.offset >> 2) * 32)) | (value << ((ca.offset >> 2) * 32));
       halfs = (response & 16'hFFFF     << ((!ca.offset >> 3) * 16)) | (value << ((ca.offset >> 3) * 16));
       bytes = (response &  8'hFF       << ((!ca.offset >> 4) *  8)) | (value << ((ca.offset >> 4) *  8));
 
       //$display("Inserting Write Data - %3d", x);
       //if (!data_miss && !waiting && !inserting && data_finished) begin
-      if (data_finished) begin
+      if (write_data_finished) begin
         $display("%3d - STORE\tMemory Type - %4b", x, memory_type);
         case(memory_type)
           SD: insert(address, value, 1, write_way, data_way, data_way_write_register);
@@ -298,21 +300,16 @@ module cache
       data_finished1 = 0;
       data_finished2 = 0;
       write_finished = 0;
-      write_busy = mem_write1;
+      write_busy = mem_write;
       data_busy = mem_read1 || mem_read2; 
       instruction_busy = 1;
 
 
-      if (mem_write1 && (!reserver_reg || reserver_reg.write1)) begin
+      if (mem_write && (!reserver_reg || reserver_reg.write1)) begin
         // Write to cache
         reserver = `WRITE1;
-        data_address_register = data_write_address1;
-        insert_data(data_write_address1, data_write1, memory_write_type1, write_data_miss1);
-      end else if (mem_write2 && (!reserver_reg || reserver_reg.write2)) begin
-        reserver = `WRITE2;
-        data_address_register = data_write_address2;
-        insert_data(data_write_address2, data_write2, memory_write_type2, write_data_miss2);
-        //insert_data();
+        data_address_register = data_write_address;
+        insert_data(data_write_address, data_write, memory_write_type, write_data_miss);
       end else if (mem_read1 && (!reserver_reg || reserver_reg.read1)) begin
         reserver = `READ1;
         data_address_register = data_read_address1;
@@ -338,7 +335,7 @@ module cache
   end
 
   always_ff @(posedge clk) begin
-    if (mem_write1 && write_finished) 
+    if (mem_write && write_finished) 
       data_way <= data_way_write_register;
   end
 
@@ -359,7 +356,7 @@ module cache
       bus_req <= eviction_address;
       start_sending_out <= 0;
       // waiting <= 1;
-    end else if (write_data_miss1 || write_data_miss2 || read_data_miss1 || read_data_miss2) begin
+    end else if (write_data_miss || read_data_miss1 || read_data_miss2) begin
       bus_req <= data_address_register & `MEMORY_MASK;// + (current_request_offset * `CELLS_NEEDED_B);
       bus_reqtag <= `MEM_READ;
       bus_reqcyc <= 1;
@@ -481,8 +478,7 @@ module cache
     if (ready_to_insert && (
           (mem_read1 && reserver_reg.read1) || 
           (mem_read2 && reserver_reg.read2) ||
-          (mem_write1 && reserver_reg.write1) ||
-          (mem_write2 && reserver_reg.write2))) begin
+          (mem_write && reserver_reg.write1))) begin
       //$display("Inserting Read Data - %3d - %b", x, reserver_reg);
       data_insert_address = data_address_register  & `MEMORY_MASK;
       insert(data_insert_address, value, 0, -1, data_way, data_way_insert_register);
@@ -504,8 +500,7 @@ module cache
     if (inserted && (
           (mem_read1 && reserver_reg.read1) || 
           (mem_read2 && reserver_reg.read2) ||
-          (mem_write1 && reserver_reg.write1) ||
-          (mem_write2 && reserver_reg.write2))) begin
+          (mem_write && reserver_reg.write1))) begin
     //if (inserted && ((mem_read1 && reserver_reg.read1) || (mem_read2 && reserver_reg.read2))) begin
       data_way <= data_way_insert_register;
       inserting <= 0;
