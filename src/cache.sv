@@ -74,6 +74,7 @@ module cache
     output data_miss;
     output data_finished;
     output MemoryWord value;
+    output int write_way;
     begin : read_data
       DoubleLine double_cells;
       WordLine word_cells;
@@ -83,6 +84,7 @@ module cache
       cache_address ca = address;
       
       value = 0;
+      write_way = -1;
 
       if (!waiting && !inserting)
         data_miss = 1;
@@ -93,24 +95,24 @@ module cache
       for (int i = 0; i < `WAYS; i++) begin
         cache_block cb = fc_in[i];
         cache_line cl = cb[ca.index];
-
         //$display("%3d - (CA) %x == %x (CL)\t\tValid - %1d\tWay - %1d", x, ca.tag, cl.tag, cl.valid, i);
-
+        //$display("WAY %2d --- CA == CL (%d)(%x == %x) --- CL Valid (%d)", i, ca.tag == cl.tag, ca.tag, cl.tag, cl.valid);
         if (ca.tag == cl.tag && cl.valid) begin
-          $display("*********DATA - %3d\ncache address  -  %x",x, ca);
-          $display("%b - %b - %b", ca.tag, ca.index, ca.offset);
+          $display("%3d - DATA\tway - %1d\tcache address - %x", x, i, ca);
+          //$display("%b - %b - %b", ca.tag, ca.index, ca.offset);
           //$display("way            -  %x", way);
-          $display("cache line     -  %x\n**********DATA", cl);
+          //$display("cache line     -  %x\n**********DATA", cl);
 
           data_finished = 1;
+          data_miss = 0;
+          reserver = 0;
+          write_way = i;
+
 
           double_cells = cl.cache_cells;
           word_cells = cl.cache_cells;
           half_cells = cl.cache_cells;
           byte_cells = cl.cache_cells;
-
-          data_miss = 0;
-          reserver = 0;
 
           // value = _____[ca.offset]
           case(memory_type)
@@ -203,10 +205,11 @@ module cache
     input [`ADDRESS_SIZE - 1 : 0] address;
     input [`DATA_SIZE * `CELLS_NEEDED - 1 : 0] value;
     input dirty;
+    input write_way;
     input full_cache fc_in;
     output full_cache fc_out;
     begin
-      int way = way_register;
+      int way = write_way >= 0 ? write_way : way_register;
       cache_address ca = address;
       
       cache_block cb = fc_in[way];  // Get block 'dcb' at way[i]
@@ -232,10 +235,11 @@ module cache
       current_request_offset = 0;
       response_cache_line = 0;
 
-      $display("cache address  -  %x", ca);
-      $display("%b - %b - %b", ca.tag, ca.index, ca.offset);
-      $display("way            -  %1d", way);
-      $display("cache line     -  %x", cl);
+      $display("%3d - INSERT\tway - %1d\tcache address - %x", x, way, ca);
+      //$display("cache address  -  %x", ca);
+      //$display("%b - %b - %b", ca.tag, ca.index, ca.offset);
+      //$display("way            -  %1d", way);
+      //$display("cache line     -  %x", cl);
 
       fc_out = fc_in;
     end
@@ -249,8 +253,8 @@ module cache
     input MemoryWord value;
     input memory_instruction_type memory_type;
     output data_miss;
-    output full_cache data_way_register;
     begin
+      int write_way;
       logic data_finished = 0; 
       WordMemory words;
       HalfMemory halfs;
@@ -258,25 +262,28 @@ module cache
       MemoryWord response = 0;
       cache_address ca = address;
 
-      read_data(address, LD, data_way, data_miss, data_finished, response);
+      read_data(address, LD, data_way, data_miss, data_finished, response, write_way);
       words = (response & 32'hFFFFFFFF << ((!ca.offset >> 2) * 32)) | (value << ((ca.offset >> 2) * 32));
       halfs = (response & 16'hFFFF     << ((!ca.offset >> 3) * 16)) | (value << ((ca.offset >> 3) * 16));
       bytes = (response &  8'hFF       << ((!ca.offset >> 4) *  8)) | (value << ((ca.offset >> 4) *  8));
 
-      $display("Inserting Write Data - %3d", x);
+      //$display("Inserting Write Data - %3d", x);
+      //if (!data_miss && !waiting && !inserting && data_finished) begin
       if (data_finished) begin
+        $display("%3d - STORE\tMemory Type - %4b", x, memory_type);
         case(memory_type)
-          SD: insert(address, value, 1, data_way, data_way_register);
-          SW: insert(address, words, 1, data_way, data_way_register);
-          SH: insert(address, halfs, 1, data_way, data_way_register);
-          SB: insert(address, bytes, 1, data_way, data_way_register);
+          SD: insert(address, value, 1, write_way, data_way, data_way_write_register);
+          SW: insert(address, words, 1, write_way, data_way, data_way_write_register);
+          SH: insert(address, halfs, 1, write_way, data_way, data_way_write_register);
+          SB: insert(address, bytes, 1, write_way, data_way, data_way_write_register);
         endcase
-      end
 
-      if (!evicting) begin
-        write_busy = 0;
-        write_finished = 1;
-        reserver = 0;
+        if (!evicting) begin
+          //$display("Finisehd evicting - %3d", x);
+          write_busy = 0;
+          write_finished = 1;
+          reserver = 0;
+        end
       end
     end
   endtask
@@ -284,9 +291,10 @@ module cache
   /******************* STEP 1 *************************/
   // Find in cache or prep for emory request
   MemoryWord instruction_response_register;
-  full_cache data_way_reg;
+  full_cache data_way_write_register;
   always_comb begin : cache_or_mem
     if (!reset) begin
+      int dud = 0;
       data_finished1 = 0;
       data_finished2 = 0;
       write_finished = 0;
@@ -294,29 +302,34 @@ module cache
       data_busy = mem_read1 || mem_read2; 
       instruction_busy = 1;
 
+
       if (mem_write1 && (!reserver_reg || reserver_reg.write1)) begin
         // Write to cache
         reserver = `WRITE1;
-        insert_data(data_write_address1, data_write1, memory_write_type1, write_data_miss1, data_way_reg);
+        data_address_register = data_write_address1;
+        insert_data(data_write_address1, data_write1, memory_write_type1, write_data_miss1);
       end else if (mem_write2 && (!reserver_reg || reserver_reg.write2)) begin
         reserver = `WRITE2;
-        insert_data(data_write_address2, data_write2, memory_write_type2, write_data_miss2, data_way_reg);
+        data_address_register = data_write_address2;
+        insert_data(data_write_address2, data_write2, memory_write_type2, write_data_miss2);
         //insert_data();
       end else if (mem_read1 && (!reserver_reg || reserver_reg.read1)) begin
         reserver = `READ1;
+        data_address_register = data_read_address1;
         // Send a data read request
-        read_data(data_read_address1, memory_read_type1, data_way, read_data_miss1, data_finished1, data_response1);
+        read_data(data_read_address1, memory_read_type1, data_way, read_data_miss1, data_finished1, data_response1, dud);
       end else if (mem_read2 && (!reserver_reg || reserver_reg.write1)) begin
         reserver = `READ2;
+        data_address_register = data_read_address2;
         // Send a data read request
-        read_data(data_read_address2, memory_read_type2, data_way,  read_data_miss2, data_finished2, data_response2);
+        read_data(data_read_address2, memory_read_type2, data_way,  read_data_miss2, data_finished2, data_response2, dud);
       end else if (instruction_read && (!reserver_reg || reserver_reg.iread)) begin// && !busy_register) begin
         reserver = `IREAD;
+        instruction_address_register = instruction_address;
         // Check cache
         read_instruction(instruction_address, instruction_way, instruction_response_register);
         instruction_response = instruction_response_register[`INSTRUCTION_SIZE - 1 : 0];
-      end else
-        reserver = 0;
+      end
     end
   end
 
@@ -326,7 +339,7 @@ module cache
 
   always_ff @(posedge clk) begin
     if (mem_write1 && write_finished) 
-      data_way <= data_way_reg;
+      data_way <= data_way_write_register;
   end
 
   /******************* STEP 2a **************************/
@@ -335,13 +348,9 @@ module cache
   // Send read request to memory
   logic response_received;
   Address instruction_address_register;
-  Address data_address1_register;
-  Address data_address2_register;
+  Address data_address_register;
   logic [`CELLS_NEEDED_B : 0] current_request_offset;
   always_ff @(posedge clk) begin : make_request
-    instruction_address_register = instruction_address;
-    data_address1_register = data_read_address1;
-    data_address2_register = data_read_address2;
     // ** Should reach here first
     // If Instruction is not in cache
     if (evicting) begin
@@ -350,14 +359,8 @@ module cache
       bus_req <= eviction_address;
       start_sending_out <= 0;
       // waiting <= 1;
-    end
-    if (read_data_miss1) begin
-      bus_req <= data_read_address1 & `MEMORY_MASK;// + (current_request_offset * `CELLS_NEEDED_B);
-      bus_reqtag <= `MEM_READ;
-      bus_reqcyc <= 1;
-      waiting <= 1;
-    end else if (read_data_miss2) begin
-      bus_req <= data_read_address2 & `MEMORY_MASK;// + (current_request_offset * `CELLS_NEEDED_B);
+    end else if (write_data_miss1 || write_data_miss2 || read_data_miss1 || read_data_miss2) begin
+      bus_req <= data_address_register & `MEMORY_MASK;// + (current_request_offset * `CELLS_NEEDED_B);
       bus_reqtag <= `MEM_READ;
       bus_reqcyc <= 1;
       waiting <= 1;
@@ -472,29 +475,38 @@ module cache
   logic inserted;
   always_comb begin
     logic [`DATA_SIZE * `CELLS_NEEDED - 1 : 0] value = response_cache_line_register;
-    Address instruction_insert_address, data_insert_address1, data_insert_address2;
+    Address instruction_insert_address, data_insert_address, data_insert_address2;
     inserted = 0; 
 
-    if (ready_to_insert && mem_read1 && reserver_reg.read1) begin
-      $display("Inserting Read Data - %3d", x);
-      data_insert_address1 = data_address1_register  & `MEMORY_MASK;
-      insert(data_insert_address1, value, 0, data_way, data_way_insert_register);
+    if (ready_to_insert && (
+          (mem_read1 && reserver_reg.read1) || 
+          (mem_read2 && reserver_reg.read2) ||
+          (mem_write1 && reserver_reg.write1) ||
+          (mem_write2 && reserver_reg.write2))) begin
+      //$display("Inserting Read Data - %3d - %b", x, reserver_reg);
+      data_insert_address = data_address_register  & `MEMORY_MASK;
+      insert(data_insert_address, value, 0, -1, data_way, data_way_insert_register);
       inserted = 1;
-    end else if (ready_to_insert && mem_read2 && reserver_reg.read2) begin
-      $display("Inserting Read Data - %3d", x);
+/*    end else if (ready_to_insert && ((mem_read2 && reserver_reg.read2) || (mem_write2 && reserver_reg.write2))) begin
+      //$display("Inserting Read Data - %3d", x);
       data_insert_address2 = data_address2_register  & `MEMORY_MASK;
       insert(data_insert_address2, value, 0, data_way, data_way_insert_register);
-      inserted = 1;
+      inserted = 1;*/
     end else if (ready_to_insert && instruction_read && reserver_reg.iread) begin
-      $display("Inserting Instruction - %3d", x);
+      //$display("Inserting Instruction - %3d", x);
       instruction_insert_address = instruction_address_register & `MEMORY_MASK;
-      insert(instruction_insert_address, value, 0, instruction_way, instruction_way_insert_register);
+      insert(instruction_insert_address, value, 0, -1, instruction_way, instruction_way_insert_register);
       inserted = 1;
     end
   end
 
   always_ff @(posedge clk) begin
-    if (inserted && ((mem_read1 && reserver_reg.read1) || (mem_read2 && reserver_reg.read2))) begin
+    if (inserted && (
+          (mem_read1 && reserver_reg.read1) || 
+          (mem_read2 && reserver_reg.read2) ||
+          (mem_write1 && reserver_reg.write1) ||
+          (mem_write2 && reserver_reg.write2))) begin
+    //if (inserted && ((mem_read1 && reserver_reg.read1) || (mem_read2 && reserver_reg.read2))) begin
       data_way <= data_way_insert_register;
       inserting <= 0;
     end else if (inserted && instruction_read && reserver_reg.iread) begin
@@ -503,7 +515,8 @@ module cache
     end
   end
 
-  /******************* STEP 5 **************************
+  /******************* STEP 5 **************************/
+/*k
   // Return to processor
   always_ff @(posedge clk) begin : return_to_processor
     if (!busy) begin
