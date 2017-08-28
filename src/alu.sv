@@ -52,7 +52,7 @@ module alu (
       XOR       :   result = sourceA ^ sourceB;
 
       ADD       :   result = result_add;
-      ADD       :   result = result_sub;
+      SUB       :   result = result_sub;
       MUL       :   result = result_mul[ 63 :  0];
       DIV,DIVU  :   result = result_div;
       REM,REMU  :   result = result_div;

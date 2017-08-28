@@ -84,9 +84,9 @@ module decoder
                       3'b001: ctrl.memory_type = LH;
                       3'b010: ctrl.memory_type = LW;
                       3'b011: ctrl.memory_type = LD;
-                      3'b100: begin ctrl.memory_type = LBU; ctrl.usign = 1; imm = uimm_i; end
-                      3'b101: begin ctrl.memory_type = LHU; ctrl.usign = 1; imm = uimm_i; end
-                      3'b110: begin ctrl.memory_type = LWU; ctrl.usign = 1; imm = uimm_i; end
+                      3'b100: begin ctrl.memory_type = LBU; ctrl.usign = 1; end
+                      3'b101: begin ctrl.memory_type = LHU; ctrl.usign = 1; end
+                      3'b110: begin ctrl.memory_type = LWU; ctrl.usign = 1; end
                     endcase
                   end
       7'b0100011: begin //SB, SH, SW, SD
