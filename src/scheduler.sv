@@ -137,6 +137,9 @@ module scheduler
         bypass_rs = 1; // Do we need to skip reservation stations
       end
     // Otherwaise behave as normal
+    end else if (ctrl_bits.aluop == LUI) begin
+      rse = 0;
+      bypass_rs = 1;
     end else if (ctrl_bits) begin
       rse.tag = rob_tail;
       rse.busy = 1;
@@ -201,7 +204,11 @@ module scheduler
         re.ready = 1;
       end
     // Otherwise behave as normal
-    end else if (ctrl_bits) begin
+    end else if (ctrl_bits.aluop == LUI) begin
+      re.ready = 1;
+      re.rd = regs_dis_reg.rd;
+      re.value = regs_dis_reg.imm;
+    end if (ctrl_bits) begin
       re.rd = regs_dis_reg.rd;
       re.ctrl_bits = ctrl_bits;
 
@@ -226,10 +233,13 @@ module scheduler
     else if (ctrl_bits.ucjump && ctrl_bits.alusrc)begin
       mte.tag = rob[rob_tail - 1].tag;
     // No map table entry needed for JAL
-    end else if (ctrl_bits.ucjump)
+    end else if (ctrl_bits.ucjump) begin
       mte = 0;
+    end else if (ctrl_bits.aluop == LUI) begin
+      mte.tag = rob[rob_tail - 1].tag;
+      mte.in_rob = 1;
     // Otherwise behave as normal
-    else if (ctrl_bits.regwr) begin
+    end else if (ctrl_bits.regwr) begin
       mte.tag = rob[rob_tail - 1].tag;
       mte.in_rob = 0;
     end

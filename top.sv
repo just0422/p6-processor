@@ -44,7 +44,7 @@ module top
   int x = 0;
   always_ff @(posedge clk) begin
     x++;
-    if (x > 1000)
+    if (x > 10000)
       $finish;
   end
 
@@ -175,7 +175,9 @@ module top
     .mem_write(mem_write),
     .memory_write_type(memory_write_type),
     .data_write_address(data_write_address),
-    .data_write(data_write)
+    .data_write(data_write),
+
+    .flush(flush)
   );
 
   always_ff @(posedge clk) begin

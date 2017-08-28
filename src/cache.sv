@@ -42,7 +42,9 @@ module cache
   input Address                 data_write_address,
   input MemoryWord              data_write,
   input memory_instruction_type memory_write_type,
-  output                        write_finished
+  output                        write_finished,
+
+  input flush 
   //output data_busy
 );
 
@@ -158,9 +160,12 @@ module cache
           instruction_busy = 0;
           reserver = 0;
           value = instruction_cells[ca.offset >> 2]; // grab value at offset
-      //    $display("%d - %x", ca.index, cl);
-      //    $display("%b", ca);
-      //    $display("%b - %b", ca.index, ca.offset);
+          $display("%3d - INSTRUCTION READ", x);
+          //$display("\t%d - %x", ca.index, cl);
+          //$display("\t%x - %x", ca.tag, cl.tag);
+          //$display("\t%x - %x", ca, cl.base_address);
+          //$display("\t%x (%2d) - %x (%2d) - %x (%2d)", ca.tag, ca.tag, ca.index, ca.index, ca.offset >> 2, ca.offset >> 2);
+          //$display("\tVALUE - %x", instruction_cells[ca.offset >> 2]);
         end 
       end
 
@@ -182,6 +187,7 @@ module cache
       eviction_address = { cl.tag, index, {`OFFSET_SIZE_B{1'b0}} };
       eviction_ccs = cl.cache_cells;
       evicting = 1;
+      eviction_start = 1;
       $display("%3d - EVICTING -> %b - %b - %b", x, cl.tag, index, 6'b0);
       $display ("%3d - EVICTING -> %x", x, cl.cache_cells);
     end
@@ -229,6 +235,7 @@ module cache
       cl.tag = ca.tag;
       cl.valid = 1;
       cl.dirty = dirty;
+      cl.base_address = address & `MEMORY_MASK;
       cl.cache_cells = value;
 
       cb[ca.index] = cl;
@@ -331,13 +338,17 @@ module cache
   end
 
   always_ff @(posedge clk) begin
-    reserver_reg <= reserver;
+    if (inserted_data_flushed || inserted_instruction_flushed)
+      reserver_reg <= 0;
+    else
+      reserver_reg <= reserver;
   end
 
   always_ff @(posedge clk) begin
     if (mem_write && write_finished) 
       data_way <= data_way_write_register;
   end
+
 
   /******************* STEP 2a **************************/
   // Send write requets to memory
@@ -350,7 +361,7 @@ module cache
   always_ff @(posedge clk) begin : make_request
     // ** Should reach here first
     // If Instruction is not in cache
-    if (evicting) begin
+    if (eviction_start) begin
       bus_reqtag <= `MEM_WRITE;
       bus_reqcyc <= 1;
       bus_req <= eviction_address;
@@ -370,21 +381,32 @@ module cache
     end
   end
 
+  logic flushed;
+  Address flushed_instruction_register, flushed_data_register;
+  always_ff @(posedge clk) begin
+    if (flush && waiting) begin
+      flushed <= 1;
+      flushed_instruction_register <= instruction_address;
+      flushed_data_register <= data_address_register;
+    end
+  end
+
   /******************* STEP 2b **************************/
   // Reset values when request is acknowledged
+  logic eviction_start;
   always_ff @(posedge clk) begin : request_acknowledged
     if (bus_reqack) begin
-      if (evicting) begin
-        start_sending_out <= 1;
-        sent_out <= 0;
-        eviction_index <= 0;
-      end else begin
-        bus_reqcyc <= 0;
-        bus_req <= 0;
-        bus_reqtag <= 0;
-      end
-      // Once memory acknowledges our request
+      eviction_start = 0;
+      bus_reqcyc <= 0;
+      bus_req <= 0;
+      bus_reqtag <= 0;
     end
+
+    if (evicting && bus_reqack) begin
+      start_sending_out <= 1;
+      sent_out <= 0;
+      eviction_index <= 0;
+    end 
   end
 
   /******************* STEP 2c **************************/
@@ -424,11 +446,11 @@ module cache
   /******************* STEP 2d **************************/
   always_ff @(posedge clk) begin
     bus_respack <= 0;
-    if (sent_out && bus_respcyc) begin
+    if (sent_out) begin // && bus_respcyc) begin
       sent_out <= 0;
       evicting = 0;
 
-      bus_respack <= 1;
+      //bus_respack <= 1;
       bus_reqtag <= 0;
       bus_req <= 0;
     end
@@ -470,17 +492,25 @@ module cache
   /******************* STEP 4 **************************/
   // Insert into cache
   logic inserted;
+  logic inserted_data_flushed, inserted_instruction_flushed;
   always_comb begin
     logic [`DATA_SIZE * `CELLS_NEEDED - 1 : 0] value = response_cache_line_register;
     Address instruction_insert_address, data_insert_address, data_insert_address2;
-    inserted = 0; 
+    inserted = 0;
+    inserted_instruction_flushed = 0;
+    inserted_data_flushed = 0;
 
     if (ready_to_insert && (
-          (mem_read1 && reserver_reg.read1) || 
-          (mem_read2 && reserver_reg.read2) ||
-          (mem_write && reserver_reg.write1))) begin
+          (reserver_reg.read1) || 
+          (reserver_reg.read2) ||
+          (reserver_reg.write1))) begin
       //$display("Inserting Read Data - %3d - %b", x, reserver_reg);
-      data_insert_address = data_address_register  & `MEMORY_MASK;
+      if (flushed) begin
+        data_insert_address = flushed_data_register & `MEMORY_MASK;
+        inserted_data_flushed = 1;
+      end else begin
+        data_insert_address = data_address_register  & `MEMORY_MASK;
+      end
       insert(data_insert_address, value, 0, -1, data_way, data_way_insert_register);
       inserted = 1;
 /*    end else if (ready_to_insert && ((mem_read2 && reserver_reg.read2) || (mem_write2 && reserver_reg.write2))) begin
@@ -488,9 +518,14 @@ module cache
       data_insert_address2 = data_address2_register  & `MEMORY_MASK;
       insert(data_insert_address2, value, 0, data_way, data_way_insert_register);
       inserted = 1;*/
-    end else if (ready_to_insert && instruction_read && reserver_reg.iread) begin
+    end else if (ready_to_insert && reserver_reg.iread) begin
       //$display("Inserting Instruction - %3d", x);
-      instruction_insert_address = instruction_address_register & `MEMORY_MASK;
+      if (flushed) begin
+        instruction_insert_address = flushed_instruction_register & `MEMORY_MASK;
+        inserted_instruction_flushed = 1;
+      end else begin
+        instruction_insert_address = instruction_address_register & `MEMORY_MASK;
+      end
       insert(instruction_insert_address, value, 0, -1, instruction_way, instruction_way_insert_register);
       inserted = 1;
     end
@@ -498,15 +533,25 @@ module cache
 
   always_ff @(posedge clk) begin
     if (inserted && (
-          (mem_read1 && reserver_reg.read1) || 
-          (mem_read2 && reserver_reg.read2) ||
-          (mem_write && reserver_reg.write1))) begin
+          (reserver_reg.read1) || 
+          (reserver_reg.read2) ||
+          (reserver_reg.write1))) begin
     //if (inserted && ((mem_read1 && reserver_reg.read1) || (mem_read2 && reserver_reg.read2))) begin
       data_way <= data_way_insert_register;
       inserting <= 0;
+
+      if (inserted_data_flushed) begin
+        flushed <= 0;
+        flushed_data_register <= 0;
+      end
     end else if (inserted && instruction_read && reserver_reg.iread) begin
       instruction_way <= instruction_way_insert_register;
       inserting <= 0;
+
+      if (inserted_instruction_flushed) begin
+        flushed <= 0;
+        flushed_instruction_register <= 0;
+      end
     end
   end
 

@@ -38,8 +38,7 @@ module decoder
       7'b0110111: begin //LUI
                     ctrl.regwr = 1;
                     ctrl.alusrc = 1;
-                    //ctrl.apc = 1;
-                    ctrl.aluop = ADD;
+                    ctrl.aluop = LUI;
                     imm = imm_u;
                   end
       7'b0010111: begin //AUIPC

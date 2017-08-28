@@ -108,6 +108,7 @@ typedef struct packed {
   logic valid;
   logic dirty;
   logic [`TAG_SIZE_B - 1 : 0] tag;
+  Address base_address;
   cache_cell [`CELLS_NEEDED - 1 : 0] cache_cells; // 64 byte offset (8 cells)
 } cache_line;
 typedef cache_line[`INDEXES_PER_WAY - 1 : 0] cache_block;
@@ -140,6 +141,7 @@ typedef enum logic [5:0] {
   SLT, SRL, SRA, SLL,
   ADDW, SUBW, SLTW, SRAW, SRLW, SLLW,
   BEQ, BNE, BGE, BLT, BGEU, BLTU,
+  LUI,
   //M extention
   MUL, MULH, MULHU, MULHSU,
   MULW, DIV, DIVU, REM,
