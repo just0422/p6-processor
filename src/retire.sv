@@ -22,23 +22,27 @@ module retire (
   output victim, 
   
   output flush,
-  output Address jump_to
+  output Address jump_to,
+
+  output ecall
 );
 
   always_comb begin
-      rd = 0;
-      value = 0;
-      re = 0;
-      mte  = 0;
-      regwr = 0;
-      rob_decrement = 0;
+    rd = 0;
+    value = 0;
+    re = 0;
+    mte  = 0;
+    regwr = 0;
+    rob_decrement = 0;
 
-      le = 0;
-      le_size = 0;
-      lsq_decrement = 0;
+    le = 0;
+    le_size = 0;
+    lsq_decrement = 0;
 
-      flush = 0;
-      jump_to = 0;
+    flush = 0;
+    jump_to = 0;
+
+    ecall = 0;
 
     if (!retire_stall) begin
       if (rob_head.ready) begin
@@ -49,7 +53,7 @@ module retire (
         rob_decrement = 1;
         re = rob_head;
 
-        if (rob_head.ctrl_bits.regwr && rob_head.ctrl_bits.ucjump && rob_head.ctrl_bits.alusrc) begin
+        if (rob_head.ctrl_bits.regwr && rob_head.ctrl_bits.ucjump) begin
           flush = 1;
           jump_to = rob_head.value;
           value = rob_head.pc + 4;
@@ -58,6 +62,12 @@ module retire (
         if (rob_head.ctrl_bits.cjump && rob_head.ctrl_bits.flush) begin
           flush = 1;
           jump_to = rob_head.ctrl_bits.branch_prediction ? rob_head.pc + 4 : rob_head.value;
+        end
+
+        if (rob_head.ctrl_bits.ecall) begin
+          ecall = 1;
+          flush = 1;
+          jump_to = rob_head.pc + 4;
         end
 
         if (rob_head.tag == lsq_head.tag) begin
@@ -75,7 +85,7 @@ module retire (
       end
     end
   end
-
+  
   always_comb
     victim = rob_head.ready && rob_head.ctrl_bits.regwr;
 

@@ -10,6 +10,7 @@
 `define INDEX_SIZE_B                $clog2(`INDEX_SIZE - 1)
 `define INDEXES_PER_WAY             32
 `define INSTRUCTION_SIZE            32
+`define INVALIDATE                  0'h0800
 `define LSQ_SIZE                    `BTB_SIZE
 `define MEM_READ                    0'h1100
 `define MEM_WRITE                   0'h0100
@@ -114,6 +115,7 @@ typedef struct packed {
 typedef cache_line[`INDEXES_PER_WAY - 1 : 0] cache_block;
 typedef cache_block [`WAYS - 1 : 0] full_cache;
 
+typedef logic [`CELLS_NEEDED - 1 : 0][`DATA_SIZE - 1 : 0] CacheCells;
 
 
 

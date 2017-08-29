@@ -49,10 +49,12 @@ module decoder
                     imm = imm_u;
                   end
       7'b1101111: begin //JAL
+                    ctrl.apc = 1;
                     ctrl.regwr = 1;
                     ctrl.ucjump = 1;
+                    ctrl.alusrc = 1;
                     ctrl.aluop = ADD;
-                    imm = 0;
+                    imm = imm_j;
                   end
       7'b1100111: begin //JALR
                     ctrl.regwr = 1;

@@ -133,8 +133,11 @@ module scheduler
         rse.tag_1 = 0;
         rse.imm = regs_dis_reg.imm;
       end else begin
-        rse = 0;
-        bypass_rs = 1; // Do we need to skip reservation stations
+        rse.busy = 1;
+        rse.tag = rob_tail;
+        rse.ctrl_bits = ctrl_bits;
+        rse.imm= regs_dis_reg.imm;
+        //bypass_rs = 1; // Do we need to skip reservation stations
       end
     // Otherwaise behave as normal
     end else if (ctrl_bits.aluop == LUI) begin
@@ -199,10 +202,9 @@ module scheduler
     end else if (ctrl_bits.ucjump) begin
       re.ctrl_bits = ctrl_bits;
       re.rd = regs_dis_reg.rd;
-      if (!ctrl_bits.alusrc) begin
-        re.value = regs_dis_reg.pc + 4;
-        re.ready = 1;
-      end
+      //if (!ctrl_bits.alusrc) begin
+      //  re.value = regs_dis_reg.pc + 4;
+      //end
     // Otherwise behave as normal
     end else if (ctrl_bits.aluop == LUI) begin
       re.ready = 1;
@@ -226,15 +228,11 @@ module scheduler
     if (regs_dis_reg.rd == 0)
       mte = 0;
     // No map table entry needed for Unsupported and Ecall
-    else if (ctrl_bits.unsupported || ctrl_bits.ecall)
+    else if (ctrl_bits.unsupported || ctrl_bits.ecall) begin
       mte = 0;
-    // Set entry as ready for JALR
-    // TODO: check this to see if the logic is correct
-    else if (ctrl_bits.ucjump && ctrl_bits.alusrc)begin
-      mte.tag = rob[rob_tail - 1].tag;
-    // No map table entry needed for JAL
+    // Set entry as ready for JAL && JALR
     end else if (ctrl_bits.ucjump) begin
-      mte = 0;
+      mte.tag = rob[rob_tail - 1].tag;
     end else if (ctrl_bits.aluop == LUI) begin
       mte.tag = rob[rob_tail - 1].tag;
       mte.in_rob = 1;

@@ -668,7 +668,7 @@ module top
   /***************************** RETIRE *******************************/
   Address jumpto;
   logic flush;
-  logic retire_regwr, victimized;
+  logic retire_regwr, victimized, retire_ecall;
   Register retire_rd;
   MemoryWord retire_value;
   rob_entry retire_re;
@@ -699,7 +699,9 @@ module top
     .victim(victimized),
 
     .flush(flush),
-    .jump_to(jumpto)
+    .jump_to(jumpto),
+
+    .ecall(retire_ecall)
   );
  
   Register write_rd;
@@ -714,7 +716,7 @@ module top
     if (write_finished)
       mem_write <= 0;
     if (retire_re.ready && !retire_stall) begin
-      $display("%d - %x - %x", x, retire_re.pc, retire_re.instruction);
+      $display("%4d - %x - %x", x, retire_re.pc, retire_re.instruction);
       if (retire_regwr) begin
         write_rd <= retire_rd;
         write_data <= retire_value;
@@ -725,7 +727,9 @@ module top
         
 
         // HMMMMM Will a later instruction entering the map table make this useless??
-        if (map_table[retire_re.rd].tag == retire_re.tag)
+        if (map_table[retire_re.rd].tag == retire_re.tag && 
+            dispatch_re.rd != retire_re.rd &&
+            dispatch_mte.tag != map_table[retire_re.rd].tag)
           map_table[retire_re.rd] <= retire_mte;
       end
 
@@ -762,8 +766,22 @@ module top
 
       end
 
+      if (retire_ecall) begin
+        do_ecall(register_file[17], 
+                 register_file[10],
+                 register_file[11], 
+                 register_file[12], 
+                 register_file[13], 
+                 register_file[14], 
+                 register_file[15], 
+                 register_file[16], 
+               register_file[10]);
+      end
 
-      if (victimized)
+
+      if (flush)
+        victim <= 0;
+      else if (victimized)
         victim <= { retire_re.rd, retire_re.value };
     end
   end
