@@ -44,7 +44,7 @@ module top
   int x = 0;
   always_ff @(posedge clk) begin
     x++;
-    if (x > 10000)
+    if (x > 20000)
       $finish;
   end
 
@@ -94,9 +94,10 @@ module top
     .clk(clk), .reset(reset),
     
     // Cache hazards
-    .busy(i_busy), .overwrite_pc(overwrite_pc), .instruction(instruction_response),
+    .busy(busy), .overwrite_pc(overwrite_pc), .instruction(instruction_response),
     .data_busy(data_busy), .data_finished1(data_finished1), .data_missed1(data_missed_lsq1),
     .write_busy(write_busy), .write_finished(write_finished),
+    .flushing(flushing),
 
     // Hardware hazards
     .rob_full(rob_full),
@@ -120,11 +121,54 @@ module top
       instruction_read = 1;
   end
 
+  always_ff @ (posedge clk) begin : cache_reservation
+    if (!busy) begin
+      if (mem_write) begin
+        RorW <= 1;
+        IorD <= 1;
+        value <= data_write_value;
+        address <= data_write_address;
+        mem_type <= memory_write_type;
+      end else if (mem_read1) begin
+        RorW <= 0;
+        IorD <= 1;
+        address <= data_read_address1;
+        mem_type <= memory_read_type1;
+      end else begin // Instruction Read
+        RorW <= 0;
+        IorD <= 0;
+        address <= pc;
+      end
+    end
+  end
+
+  always_ff @ (posedge clk) begin : cache_return
+    data_finished1 <= 0;
+    if(finished) begin
+      if (mem_write) begin
+        mem_write <= 0;
+      end else if (mem_read1) begin
+        data_response1 <= cache_response;
+        data_finished1 <= 1;
+        mem_read1 <= 0;
+      end else begin
+        instruction_response <= cache_response[`INSTRUCTION_SIZE - 1: 0];
+      end
+    end
+  end
+
 /************************** INSTRUCTION FETCH ******************************/
+  logic IorD = 0, RorW = 0;
+  Address address;
+  MemoryWord value;
+  memory_instruction_type mem_type;
+  MemoryWord cache_response;
+
   logic [`INSTRUCTION_SIZE-1:0] instruction_response;
   logic [`ADDRESS_SIZE - 1:0] instruction_address;
   logic instruction_read;
   logic busy;
+  logic flushing;
   
   logic [`DATA_SIZE-1:0] d_req_r, d_req_w, d_write, d_data;
   logic [3:0] req_size_w, req_size_r;
@@ -138,7 +182,7 @@ module top
 
   logic mem_write;
   logic write_finished;
-  MemoryWord data_write;
+  MemoryWord data_write_value;
   Address data_write_address;
   memory_instruction_type memory_write_type;
 
@@ -151,8 +195,15 @@ module top
     .bus_respack(bus_respack),        .bus_reqcyc(bus_reqcyc), 
     .bus_resptag(bus_resptag),        .bus_req(bus_req),
     .bus_resp(bus_resp),              .bus_reqtag(bus_reqtag), 
+
+    .busy(busy), .finished(finished),
+
+    .RorW(RorW), .IorD(IorD),
+    .address(address), .value(value),
+    .mem_type(mem_type),
+    .response(cache_response)
          
-    .instruction_busy(i_busy),
+/*    .instruction_busy(i_busy),
     .data_busy(data_busy),
     .write_busy(write_busy),
 
@@ -177,7 +228,7 @@ module top
     .data_write_address(data_write_address),
     .data_write(data_write),
 
-    .flush(flush)
+    .flush(flush), .flushing(flushing)*/
   );
 
   always_ff @(posedge clk) begin
@@ -713,10 +764,17 @@ module top
     write_regwr <= 0;
     //victim <= 0;  // HELP: DO I need this or does the Victim hang around until changed??
 
-    if (write_finished)
-      mem_write <= 0;
+    //if (write_finished)
+    //  mem_write <= 0;
     if (retire_re.ready && !retire_stall) begin
       $display("%4d - %x - %x", x, retire_re.pc, retire_re.instruction);
+      if (retire_re.instruction == 64'h00008067)
+        $display("\tReturn");
+      case (retire_re.instruction[6:0])
+        7'b1101111: $display("\tJAL");
+        7'b1100111: $display("\tJALR");
+        7'b1100011: $display("\tBranch");
+      endcase
       if (retire_regwr) begin
         write_rd <= retire_rd;
         write_data <= retire_value;
@@ -724,12 +782,10 @@ module top
 
         if (retire_rd)
           register_file[retire_rd] <= retire_value;
-        
 
         // HMMMMM Will a later instruction entering the map table make this useless??
         if (map_table[retire_re.rd].tag == retire_re.tag && 
-            dispatch_re.rd != retire_re.rd &&
-            dispatch_mte.tag != map_table[retire_re.rd].tag)
+            (dispatch_re.rd != retire_re.rd || frontend_stall))
           map_table[retire_re.rd] <= retire_mte;
       end
 
@@ -759,7 +815,7 @@ module top
         if (retire_le.category == STORE) begin
           mem_write <= 1;
           data_write_address <= retire_le.address;
-          data_write <= retire_le.value;
+          data_write_value <= retire_le.value;
           memory_write_type <= retire_le.memory_type;
           do_pending_write(retire_le.address, retire_le.value, retire_le_size);
         end

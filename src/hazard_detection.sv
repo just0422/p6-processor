@@ -5,10 +5,11 @@ module hazard_detection
   input reset, 
 
   // Cache inputs
-  input busy, overwrite_pc, 
+  input busy, finished, overwrite_pc, 
   input InstructionWord instruction,
   input data_busy, data_finished1, data_missed1,
   input write_busy, write_finished,
+  input flushing,
 
   // Hardware Inputs
   input rob_full,
@@ -27,7 +28,8 @@ module hazard_detection
   always_comb begin
     fetch_stall = reset;
 
-    fetch_stall |= (busy || overwrite_pc || !instruction);
+    fetch_stall |= (busy || finished || overwrite_pc);
+    fetch_stall |= flushing;
     fetch_stall |= rob_full;
   end
   always_comb begin

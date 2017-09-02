@@ -10,11 +10,11 @@ module decoder
   output [`CONTROL_BITS_SIZE - 1 : 0] ctrl_bits
 );
 
+  always_comb begin
     logic [6:0] op = instruction[6:0];
     logic [2:0] funct3 = instruction[14:12];
     logic [6:0] funct7 = instruction[31:25];
 
-  always_comb begin
     control_bits ctrl = 0;
     //Straight from the instruction
     logic [`DATA_SIZE-1:0] imm_i = {{52{instruction[31]}}, instruction[31:20]};
