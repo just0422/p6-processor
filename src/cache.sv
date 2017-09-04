@@ -26,7 +26,7 @@ module cache
   output busy, finished,
 
   input RorW, IorD,
-  input Address address,
+  input Address data_address, instruction_address,
   input MemoryWord value,
   input memory_instruction_type mem_type,
 
@@ -55,7 +55,7 @@ module cache
   //output data_busy
 );
 
-  logic DEBUG = 0;
+  logic DEBUG = 1;
 
   cache_block [`WAYS - 1 : 0] data_way; // 32 KB Data Cache
   cache_block [`WAYS - 1 : 0] instruction_way; // 32 KB Instruction Cache
@@ -379,16 +379,20 @@ module cache
       //write_busy = mem_write;
       //data_busy = mem_read1 || mem_read2; 
       //instruction_busy = 1;
+      if (!waiting && !inserting) begin
+        data_address_register = data_address;
+        instruction_address_register = instruction_address;
+      end
 
       if (RorW && IorD) begin // Mem Write
-        data_address_register = address;
-        insert_data(address, value, mem_type);
+        //data_address_register = data_address;
+        insert_data(data_address, value, mem_type);
       end else if (!RorW && IorD) begin // Mem Read
-        data_address_register = address;
-        read_data(address, mem_type, data_way, finished, response, cldud, dud);
+        //data_address_register = data_address;
+        read_data(data_address, mem_type, data_way, finished, response, cldud, dud);
       end else begin
-        instruction_address_register = address;
-        read_instruction(address, instruction_way, response); 
+        //instruction_address_register = instruction_address;
+        read_instruction(instruction_address, instruction_way, response); 
       end
 
 /*      if (mem_write && (!reserver_reg || reserver_reg.write1)) begin

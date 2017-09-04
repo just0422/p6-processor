@@ -94,7 +94,8 @@ module top
     .clk(clk), .reset(reset),
     
     // Cache hazards
-    .busy(busy), .overwrite_pc(overwrite_pc), .instruction(instruction_response),
+    .busy(busy), .finished(finished), .overwrite_pc(overwrite_pc), .instruction(instruction_response),
+    .mem_write(mem_write),
     .data_busy(data_busy), .data_finished1(data_finished1), .data_missed1(data_missed_lsq1),
     .write_busy(write_busy), .write_finished(write_finished),
     .flushing(flushing),
@@ -121,38 +122,47 @@ module top
       instruction_read = 1;
   end
 
+  cache_reserve reserver;
   always_ff @ (posedge clk) begin : cache_reservation
-    if (!busy) begin
+    if (flush) begin
+      IorD <= 0;
+      RorW <= 0;
+    end else if (!busy) begin
       if (mem_write) begin
         RorW <= 1;
         IorD <= 1;
+        reserver <= `WRITE1;
         value <= data_write_value;
         address <= data_write_address;
         mem_type <= memory_write_type;
       end else if (mem_read1) begin
         RorW <= 0;
         IorD <= 1;
+        reserver <= `READ1;
         address <= data_read_address1;
         mem_type <= memory_read_type1;
       end else begin // Instruction Read
         RorW <= 0;
         IorD <= 0;
-        address <= pc;
+        reserver <= `IREAD;
       end
     end
   end
 
+
   always_ff @ (posedge clk) begin : cache_return
     data_finished1 <= 0;
     if(finished) begin
-      if (mem_write) begin
+      RorW <= 0;
+      IorD <= 0;
+      if (reserver == `WRITE1) begin
         mem_write <= 0;
-      end else if (mem_read1) begin
+        reserver <= 0;
+      end else if (reserver == `READ1) begin
         data_response1 <= cache_response;
         data_finished1 <= 1;
         mem_read1 <= 0;
-      end else begin
-        instruction_response <= cache_response[`INSTRUCTION_SIZE - 1: 0];
+        reserver <= 0;
       end
     end
   end
@@ -199,7 +209,8 @@ module top
     .busy(busy), .finished(finished),
 
     .RorW(RorW), .IorD(IorD),
-    .address(address), .value(value),
+    .data_address(address), .instruction_address(pc),
+    .value(value),
     .mem_type(mem_type),
     .response(cache_response)
          
@@ -232,18 +243,24 @@ module top
   );
 
   always_ff @(posedge clk) begin
+    if (busy) begin
+    end
+
     if (flush) begin
       pc <= jumpto;
       cac_bp_reg <= 0;
     end else if (overwrite_pc && !frontend_stall) begin
       pc <= next_pc;
       cac_bp_reg <= 0;
-    end else if (!fetch_stall) begin
-      cac_bp_reg <= { instruction_response, pc };
+    end else if (!fetch_stall && finished && !IorD) begin
+      cac_bp_reg <= { cache_response[`INSTRUCTION_SIZE - 1: 0], pc };
       pc <= pc + 4;
-    end else if (!frontend_stall)
+      reserver <= 0;
+    end else if (!frontend_stall) begin
       cac_bp_reg <= 0;
+    end
   end
+
 
   cache_branchprediction_register cac_bp_reg;
 
@@ -767,7 +784,7 @@ module top
     //if (write_finished)
     //  mem_write <= 0;
     if (retire_re.ready && !retire_stall) begin
-      $display("%4d - %x - %x", x, retire_re.pc, retire_re.instruction);
+      $display("%5d - %x - %x", x, retire_re.pc, retire_re.instruction);
       if (retire_re.instruction == 64'h00008067)
         $display("\tReturn");
       case (retire_re.instruction[6:0])
