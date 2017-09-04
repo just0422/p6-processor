@@ -172,6 +172,7 @@ typedef struct packed {
 
 
 typedef logic [$clog2(`ROB_SIZE) : 0] RobSize;
+typedef logic [$clog2(`LSQ_SIZE) : 0] LsqSize;
 typedef logic [$clog2(`RS_SIZE) : 0] ResSize;
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -219,6 +220,7 @@ typedef struct packed {
 
 typedef struct packed {
   RobSize tag;
+  LsqSize lsq_id;
   MemoryWord sourceA;
   MemoryWord sourceB;
   MemoryWord data; // For stores
@@ -227,6 +229,7 @@ typedef struct packed {
 
 typedef struct packed {
   RobSize tag;
+  LsqSize lsq_id;
   logic take_branch;
   MemoryWord result;
   MemoryWord data;
@@ -266,6 +269,7 @@ typedef struct packed {
 typedef struct packed {
   logic busy;
   ResSize id;
+  LsqSize lsq_id;
   RobSize tag;
   RobSize tag_1;
   RobSize tag_2;
@@ -278,8 +282,8 @@ typedef struct packed {
 // Load/Story Queue Entry
 typedef struct packed {
   logic ready;
+  LsqSize id;
   RobSize tag;
-  longint color;
   Address address;
   MemoryWord value;
   memory_instruction_category category;

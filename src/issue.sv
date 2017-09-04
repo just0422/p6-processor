@@ -5,13 +5,40 @@ module issue
 
   // Used to find the next res_station
   input rs_entry res_stations[`RS_SIZE-1:0],
+  input lsq_entry lsq[`LSQ_SIZE - 1 : 0],
+
+  input int lsq_head, lsq_tail,
 
   // Output Needed Issue values
-  output int tag1, rs_id1,
+  output RobSize tag1, 
+  output ResSize rs_id1,
+  output LsqSize lsq_id1, 
   output MemoryWord sourceA1, sourceB1, data1,
   output control_bits ctrl_bits1,
   output issue_execute_register iss_exe_reg_2
 );
+
+  function earlier_store;
+    input lsq_id;
+    begin
+      if (lsq_head <= lsq_tail) begin
+        for (int i = lsq_id - 1; i > lsq_head; i--) begin
+          if (lsq[i - 1].category == STORE)
+            return 1;
+        end
+      end else begin
+        for (int i = lsq_id - 1; i > 0; i --) begin
+          if (lsq[i - 1].category == STORE)
+            return 1;
+        end
+        for (int i = `LSQ_SIZE; i >= lsq_head; i--) begin
+          if (lsq[i - 1].category == STORE)
+            return 1;
+        end
+      end
+      return 0;
+    end
+  endfunction
   
   always_comb begin : issue
     int first_selected;
@@ -30,6 +57,18 @@ module issue
       if ( res_stations[i].busy &&      // Station is busy
           !res_stations[i].tag_1 &&     // First tag is free
           !res_stations[i].tag_2) begin // Second tag is free
+
+        if (res_stations[i].ctrl_bits.memtoreg) begin
+          if (earlier_store(res_stations[i].lsq_id)) begin
+            continue;
+          end
+          
+          // Stores go off in order
+          if (res_stations[i].ctrl_bits.memwr) begin
+            if (res_stations[i].lsq_id != lsq_head)
+              continue;
+          end
+        end
         sourceA1 = res_stations[i].value_1;
 
         // If it's an i-instruction
@@ -45,6 +84,7 @@ module issue
         ctrl_bits1 = res_stations[i].ctrl_bits;
         rs_id1 = res_stations[i].id;
         tag1 = res_stations[i].tag;
+        lsq_id1 = res_stations[i].lsq_id;
         break;
       end
     end

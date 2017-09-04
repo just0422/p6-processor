@@ -158,6 +158,9 @@ module scheduler
         // TODO: Check to see if we have to zero out V2 and T2
       end
 
+      if (ctrl_bits.memwr || ctrl_bits.memtoreg)
+        rse.lsq_id = lsq_tail;
+
       bypass_rs = 0;
     end
   end
@@ -176,7 +179,7 @@ module scheduler
   // Create ROB Entries
   always_comb begin
     control_bits ctrl_bits = regs_dis_reg.ctrl_bits;
-    tag = rob[rob_tail - 1].tag;
+    tag = rob_tail; //rob[rob_tail - 1].tag;
     re = 0;
     
     rob_increment = 0;
@@ -252,17 +255,17 @@ module scheduler
     // Prep for loads
     if (ctrl_bits.memtoreg) begin
       le.tag = rob_tail;
+      le.id = lsq_tail;
       le.category = LOAD;
       le.memory_type = ctrl_bits.memory_type;
-      le.color = lsq[previous_le].color;
     end
 
     // Prep for stores
     if (ctrl_bits.memwr) begin
       le.tag = rob_tail;
+      le.id = lsq_tail;
       le.category = STORE;
       le.memory_type = ctrl_bits.memory_type;
-      le.color = lsq[previous_le].color + 1;
     end
 
     lsq_increment = 0;

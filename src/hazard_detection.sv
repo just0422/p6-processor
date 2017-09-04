@@ -5,7 +5,7 @@ module hazard_detection
   input reset, 
 
   // Cache inputs
-  input busy, finished, overwrite_pc,
+  input busy, overwrite_pc,
   input mem_write, mem_read,
   input InstructionWord instruction,
   input data_busy, data_finished1, data_missed1,

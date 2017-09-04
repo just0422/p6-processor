@@ -94,7 +94,7 @@ module top
     .clk(clk), .reset(reset),
     
     // Cache hazards
-    .busy(busy), .finished(finished), .overwrite_pc(overwrite_pc), .instruction(instruction_response),
+    .busy(busy), .instruction(instruction_response),
     .mem_write(mem_write),
     .data_busy(data_busy), .data_finished1(data_finished1), .data_missed1(data_missed_lsq1),
     .write_busy(write_busy), .write_finished(write_finished),
@@ -152,7 +152,7 @@ module top
 
   always_ff @ (posedge clk) begin : cache_return
     data_finished1 <= 0;
-    if(finished) begin
+    if(data_finished) begin
       RorW <= 0;
       IorD <= 0;
       if (reserver == `WRITE1) begin
@@ -169,6 +169,7 @@ module top
 
 /************************** INSTRUCTION FETCH ******************************/
   logic IorD = 0, RorW = 0;
+  logic instruction_finished, data_finished;
   Address address;
   MemoryWord value;
   memory_instruction_type mem_type;
@@ -206,7 +207,9 @@ module top
     .bus_resptag(bus_resptag),        .bus_req(bus_req),
     .bus_resp(bus_resp),              .bus_reqtag(bus_reqtag), 
 
-    .busy(busy), .finished(finished),
+    .busy(busy), 
+    .data_finished(data_finished),
+    .instruction_finished(instruction_finished),
 
     .RorW(RorW), .IorD(IorD),
     .data_address(address), .instruction_address(pc),
@@ -252,7 +255,7 @@ module top
     end else if (overwrite_pc && !frontend_stall) begin
       pc <= next_pc;
       cac_bp_reg <= 0;
-    end else if (!fetch_stall && finished && !IorD) begin
+    end else if (!fetch_stall && instruction_finished && !IorD) begin
       cac_bp_reg <= { cache_response[`INSTRUCTION_SIZE - 1: 0], pc };
       pc <= pc + 4;
       reserver <= 0;
@@ -530,7 +533,9 @@ module top
   end
 
   /****************************** ISSUE *******************************/
-  int tag1, rs_id1;
+  RobSize tag1;
+  LsqSize lsq_id1;
+  ResSize rs_id1;
   MemoryWord sourceA1, sourceB1, data1;
   control_bits ctrl_bits1;
 
@@ -541,9 +546,10 @@ module top
 
     // Needed to find the next Reservation Station
     .res_stations(res_stations),
+    .lsq(lsq), .lsq_head(lsq_head), .lsq_tail(lsq_tail),
 
     // Outputs for each pipeline
-    .tag1(tag1), .rs_id1(rs_id1), .sourceA1(sourceA1), .sourceB1(sourceB1),
+    .tag1(tag1), .lsq_id1(lsq_id1), .rs_id1(rs_id1), .sourceA1(sourceA1), .sourceB1(sourceB1),
     .data1(data1), .ctrl_bits1(ctrl_bits1),
     .iss_exe_reg_2(ie_reg2)
   );
@@ -553,7 +559,7 @@ module top
       iss_exe_reg_1 <= 0;
       iss_exe_reg_2 <= 0;
     end else if (!backend_stall) begin
-      iss_exe_reg_1 <= { tag1, sourceA1, sourceB1, data1, ctrl_bits1 };
+      iss_exe_reg_1 <= { tag1, lsq_id1, sourceA1, sourceB1, data1, ctrl_bits1 };
       iss_exe_reg_2 <= ie_reg2;
       if (rs_id1 > 0)
         res_stations[rs_id1 - 1].busy <= 0;
@@ -581,7 +587,7 @@ module top
     if (flush) begin
       exe_mem_reg_1 <= 0;
     end else if (!backend_stall)
-      exe_mem_reg_1 <= { iss_exe_reg_1.tag, take_branch1, result1, 
+      exe_mem_reg_1 <= { iss_exe_reg_1.tag, iss_exe_reg_1.lsq_id, take_branch1, result1, 
                          iss_exe_reg_1.data, iss_exe_reg_1.ctrl_bits };
   end
 
@@ -600,12 +606,14 @@ module top
 
     // Inputs
     .lsq(lsq),
+    .lsq_head(lsq_head),
     .lsq_tail(lsq_tail),
 
     .ctrl_bits(exe_mem_reg_1.ctrl_bits),
     .address(exe_mem_reg_1.result),
     .data(exe_mem_reg_1.data),
     .tag(exe_mem_reg_1.tag),
+    .lsq_id(exe_mem_reg_1.lsq_id),
 
     .data_response1(cache_data1),
     .data_ready1(data_ready1),

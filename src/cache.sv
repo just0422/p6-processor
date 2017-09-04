@@ -23,7 +23,7 @@ module cache
 
   // Hazard signals
   // output instruction_busy, data_busy, write_busy,
-  output busy, finished,
+  output busy, instruction_finished, data_finished,
 
   input RorW, IorD,
   input Address data_address, instruction_address,
@@ -55,7 +55,7 @@ module cache
   //output data_busy
 );
 
-  logic DEBUG = 1;
+logic DEBUG = 0;
 
   cache_block [`WAYS - 1 : 0] data_way; // 32 KB Data Cache
   cache_block [`WAYS - 1 : 0] instruction_way; // 32 KB Instruction Cache
@@ -72,7 +72,8 @@ module cache
   logic waiting; // Waiting for memory response
   logic inserting; // Are we currently inserting into the cache
   logic evicting; // Am I evicting from memory
-  logic data_miss, instruction_miss;
+  logic miss;
+  //logic data_miss, instruction_miss;
   //logic write_data_miss, read_data_miss1, read_data_miss2, instruction_miss; // Did we miss in cache??
 
 
@@ -84,7 +85,7 @@ module cache
     input memory_instruction_type memory_type;
     input full_cache fc_in;
     //output data_miss;
-    output data_finished;
+    output read_data_finished;
     output MemoryWord value;
     output CacheCells value_line;
     output int write_way;
@@ -97,15 +98,16 @@ module cache
       cache_address ca = address;
       
       value = 0;
-      data_finished = 0;
+      read_data_finished = 0;
 
       write_way = -1;
-
+      miss = 1;
+/*
       if (!waiting && !inserting)
-        data_miss = 1;
+        //data_miss = 1;
       else
         data_miss = 0;
-
+*/
 
       for (int i = 0; i < `WAYS; i++) begin
         cache_block cb = fc_in[i];
@@ -120,8 +122,9 @@ module cache
             $display("\t\tcache line - %x", cl);
           end
 
-          data_finished = 1;
-          data_miss = 0;
+          read_data_finished = 1;
+          //data_miss = 0;
+          miss = 0;
           reserver = 0;
           write_way = i;
 
@@ -158,23 +161,23 @@ module cache
       InstructionLine instruction_cells;
 
       value = 0;
-      finished = 0;
-
-
+      miss = 1;
+/*
       if (!waiting && !inserting) 
         instruction_miss = 1; 
       else
         instruction_miss = 0;
-
+*/
       // No break because no block should ever have the same tag
       for (int i = 0; i < `WAYS; i++) begin
         cache_block cb = fc_in[i];  // Get block 'cb' at way[i]
         cache_line cl = cb[ca.index]; // Get cache line 'cl' cb[index]
         if (ca.tag == cl.tag && cl.valid) begin // IF address tag and cache set tag are the same
           instruction_cells = cl.cache_cells; // Cast cache_cells to instruction_cells for size_purposes
-          instruction_miss = 0;
+          miss = 0;
+          //instruction_miss = 0;
           busy = 0;
-          finished = 1;
+          instruction_finished = 1;
 
           value = instruction_cells[ca.offset >> 2]; // grab value at offset
           //$display("\t%4d - INSTRUCTION READ", x);
@@ -355,7 +358,7 @@ module cache
         if (!evicting) begin
           //$display("Finisehd evicting - %3d", x);
           busy = 0;
-          finished = 1;
+          data_finished = 1;
         end
       end
     end
@@ -371,53 +374,28 @@ module cache
       CacheCells cldud = 0;
 
       busy = 1;
-      finished = 0;
+      instruction_finished = 0;
+      data_finished = 0;
+      miss = 0;
 
-      //data_finished1 = 0;
-      //data_finished2 = 0;
-      //write_finished = 0;
-      //write_busy = mem_write;
-      //data_busy = mem_read1 || mem_read2; 
-      //instruction_busy = 1;
       if (!waiting && !inserting) begin
-        data_address_register = data_address;
-        instruction_address_register = instruction_address;
-      end
-
-      if (RorW && IorD) begin // Mem Write
         //data_address_register = data_address;
-        insert_data(data_address, value, mem_type);
-      end else if (!RorW && IorD) begin // Mem Read
-        //data_address_register = data_address;
-        read_data(data_address, mem_type, data_way, finished, response, cldud, dud);
-      end else begin
         //instruction_address_register = instruction_address;
-        read_instruction(instruction_address, instruction_way, response); 
-      end
 
-/*      if (mem_write && (!reserver_reg || reserver_reg.write1)) begin
-        // Write to cache
-        reserver = `WRITE1;
-        data_address_register = data_write_address;
-        insert_data(data_write_address, data_write, memory_write_type, write_data_miss);
-      end else if (mem_read1 && (!reserver_reg || reserver_reg.read1)) begin
-        reserver = `READ1;
-        data_address_register = data_read_address1;
-        // Send a data read request
-        read_data(data_read_address1, memory_read_type1, data_way, read_data_miss1, data_finished1, data_response1, cldud, dud);
-      end else if (mem_read2 && (!reserver_reg || reserver_reg.write1)) begin
-        reserver = `READ2;
-        data_address_register = data_read_address2;
-        // Send a data read request
-        read_data(data_read_address2, memory_read_type2, data_way,  read_data_miss2, data_finished2, data_response2, cldud, dud);
-      end else if (instruction_read && (!reserver_reg || reserver_reg.iread)) begin// && !busy_register) begin
-        reserver = `IREAD;
-        instruction_address_register = instruction_address;
-        // Check cache
-        read_instruction(instruction_address, instruction_way, instruction_response_register);
-        instruction_response = instruction_response_register[`INSTRUCTION_SIZE - 1 : 0];
+        if (RorW && IorD) begin // Mem Write
+          //data_address_register = data_address;
+          insert_data(data_address, value, mem_type);
+          address_register = data_address;
+        end else if (!RorW && IorD) begin // Mem Read
+          //data_address_register = data_address;
+          read_data(data_address, mem_type, data_way, data_finished, response, cldud, dud);
+          address_register = data_address;
+        end else begin
+          //instruction_address_register = instruction_address;
+          read_instruction(instruction_address, instruction_way, response); 
+          address_register = instruction_address;
+        end
       end
-      */
     end
   end
 
@@ -429,7 +407,7 @@ module cache
   end
 
   always_ff @(posedge clk) begin
-    if (IorD && RorW && finished) 
+    if (IorD && RorW && data_finished) 
       data_way <= data_way_write_register;
   end
 
@@ -439,8 +417,9 @@ module cache
   logic start_sending_out;
   // Send read request to memory
   logic response_received;
-  Address instruction_address_register;
-  Address data_address_register;
+//  Address instruction_address_register;
+//  Address data_address_register;
+  Address address_register;
   logic [`CELLS_NEEDED_B : 0] current_request_offset;
   always_ff @(posedge clk) begin : make_request
     // ** Should reach here first
@@ -450,41 +429,13 @@ module cache
       bus_reqcyc <= 1;
       bus_req <= eviction_address;
       start_sending_out <= 0;
-      // waiting <= 1;
-    //end else if (write_data_miss || read_data_miss1 || read_data_miss2) begin
-    end else if (data_miss) begin
-      bus_req <= data_address_register & `MEMORY_MASK;// + (current_request_offset * `CELLS_NEEDED_B);
+    end else if (miss) begin
+      bus_req <= address_register & `MEMORY_MASK;// + (current_request_offset * `CELLS_NEEDED_B);
       bus_reqtag <= `MEM_READ;
       bus_reqcyc <= 1;
       waiting <= 1;
-    end else if (instruction_miss) begin
-      // Send an instruction read request
-      bus_req <= instruction_address_register & `MEMORY_MASK;// + (current_request_offset * `CELLS_NEEDED_B);
-      bus_reqtag <= `MEM_READ;
-      bus_reqcyc <= 1;
-      waiting <= 1;
-    end
+    end 
   end
-
-/*  Address flushed_instruction_register, flushed_data_register;
-  cache_reserve flushed_reserver_register;
-  always_ff @(posedge clk) begin
-    if (flush && waiting) begin
-      flushing <= 1;
-      if (reserver_reg.iread) begin
-        instruction_busy = 1;
-        flushed_instruction_register <= instruction_address_register;
-        flushed_data_register <= 0;
-        flushed_reserver_register <= reserver_reg;
-      end else if(reserver_reg) begin
-        data_busy = 1;
-        write_busy = 1;
-        flushed_data_register <= data_address_register;
-        flushed_instruction_register <= 0;
-        flushed_reserver_register <= reserver_reg;
-      end
-    end
-  end*/
 
   /******************* STEP 2b **************************/
   // Reset values when request is acknowledged
@@ -635,12 +586,12 @@ module cache
 //          (reserver_reg.read2) ||
 //          (reserver_reg.write1))) begin
       //$display("Inserting Read Data - %3d - %b", x, reserver_reg);
-      data_insert_address = data_address_register  & `MEMORY_MASK;
+      data_insert_address = address_register  & `MEMORY_MASK;
       insert(data_insert_address, value, 0, -1, data_way, data_way_insert_register);
       inserted = 1;
     end else if (ready_to_insert && !IorD) begin
       //$display("Inserting Instruction - %3d", x);
-      instruction_insert_address = instruction_address_register & `MEMORY_MASK;
+      instruction_insert_address = address_register & `MEMORY_MASK;
       insert(instruction_insert_address, value, 0, -1, instruction_way, instruction_way_insert_register);
       inserted = 1;
     end
