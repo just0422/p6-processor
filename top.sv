@@ -329,10 +329,6 @@ module top
     if (flush)
       dec_dis_reg <= 0;
     else if (!frontend_stall)
-      dec_dis_reg <= {fet_dec_reg.instruction,
-                       fet_dec_reg.pc, 
-                       fet_dec_reg.jumpto,
-                       decode_ctrl_bits};
       dec_dis_reg <= { fet_dec_reg.instruction, 
                        fet_dec_reg.pc, 
                        fet_dec_reg.jumpto,
