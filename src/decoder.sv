@@ -2,11 +2,11 @@ module decoder
 (
   input [`INSTRUCTION_SIZE - 1: 0] instruction,
   input branch_taken,
+  input MemoryWord register_file [`NUMBER_OF_REGISTERS - 1 : 0],
 
-  output [`NUMBER_OF_REGISTERS - 1: 0] register_source_1,
-  output [`NUMBER_OF_REGISTERS - 1: 0] register_source_2,
-  output [`NUMBER_OF_REGISTERS - 1: 0] register_destination,
-  output [`IMMEDIATE_SIZE - 1 : 0] imm,
+  output Register register_source_1, register_source_2, register_destination,
+  output MemoryWord register_value_1, register_value_2, 
+  output Immediate imm,
   output [`CONTROL_BITS_SIZE - 1 : 0] ctrl_bits
 );
 
@@ -30,6 +30,8 @@ module decoder
     //Straight from the instruction
     register_source_1 = instruction[19:15];
     register_source_2 = instruction[24:20];
+    register_value_1 = register_file[instruction[19:15]];
+    register_value_2 = register_file[instruction[24:20]];
     register_destination = instruction[11:7];
     imm = 0;
     //Calculated

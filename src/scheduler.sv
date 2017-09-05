@@ -15,7 +15,7 @@ module scheduler
   input rob_entry rob[`ROB_SIZE - 1 : 0],
   input lsq_entry lsq[`LSQ_SIZE - 1 : 0],
   input rs_entry res_stations[`RS_SIZE - 1 : 0],
-  input registers_dispatch_register regs_dis_reg,
+  input decode_dispatch_register dec_dis_reg,
 
   // This guy is from the most recently retired ROB Head
   input Victim victim,
@@ -42,7 +42,7 @@ module scheduler
 );
 
   always_comb
-    nop = regs_dis_reg ? 0 : 1;
+    nop = dec_dis_reg ? 0 : 1;
   
   task assign_tag_value;
     input Register register_source;
@@ -78,22 +78,22 @@ module scheduler
   always_comb begin
     MemoryWord rs_val_1 = 0, rs_val_2 = 0;
     ResSize rs_tag_1 = 0, rs_tag_2 = 0;
-    control_bits ctrl_bits = regs_dis_reg.ctrl_bits;
+    control_bits ctrl_bits = dec_dis_reg.ctrl_bits;
     rse = 0;
     
     // TODO
     // Remember to consider AUIPC and LUI for res station 1
 
     // Assign tags
-    assign_tag_value(.register_source(regs_dis_reg.rs1), .register_value(regs_dis_reg.rs1_value),
+    assign_tag_value(.register_source(dec_dis_reg.rs1), .register_value(dec_dis_reg.rs1_value),
                      .rs_value (rs_val_1), .rs_tag(rs_tag_1));
-    assign_tag_value(.register_source(regs_dis_reg.rs2), .register_value(regs_dis_reg.rs2_value),
+    assign_tag_value(.register_source(dec_dis_reg.rs2), .register_value(dec_dis_reg.rs2_value),
                      .rs_value (rs_val_2), .rs_tag(rs_tag_2));
 
     // Unique Cases
     // Is the PC one of the operands??
     if (ctrl_bits.apc) begin
-      rs_val_1 = regs_dis_reg.pc;
+      rs_val_1 = dec_dis_reg.pc;
       rs_tag_1 = 0;
     end
     
@@ -118,7 +118,7 @@ module scheduler
       rse.value_2 = 0;
       rse.tag_1 = rs_tag_1;
       rse.tag_2 = 0;
-      rse.imm = regs_dis_reg.imm;
+      rse.imm = dec_dis_reg.imm;
 
       bypass_rs = 0;
     // Skip reservation stations for JAL
@@ -131,12 +131,12 @@ module scheduler
         rse.tag_1 = rs_tag_1;
         rse.value_2 = 0;
         rse.tag_1 = 0;
-        rse.imm = regs_dis_reg.imm;
+        rse.imm = dec_dis_reg.imm;
       end else begin
         rse.busy = 1;
         rse.tag = rob_tail;
         rse.ctrl_bits = ctrl_bits;
-        rse.imm= regs_dis_reg.imm;
+        rse.imm= dec_dis_reg.imm;
         //bypass_rs = 1; // Do we need to skip reservation stations
       end
     // Otherwaise behave as normal
@@ -154,7 +154,7 @@ module scheduler
 
       // Assign the immediate field if we have one
       if (ctrl_bits.alusrc) begin
-        rse.imm = regs_dis_reg.imm;
+        rse.imm = dec_dis_reg.imm;
         // TODO: Check to see if we have to zero out V2 and T2
       end
 
@@ -178,7 +178,7 @@ module scheduler
 
   // Create ROB Entries
   always_comb begin
-    control_bits ctrl_bits = regs_dis_reg.ctrl_bits;
+    control_bits ctrl_bits = dec_dis_reg.ctrl_bits;
     tag = rob_tail; //rob[rob_tail - 1].tag;
     re = 0;
     
@@ -192,8 +192,8 @@ module scheduler
       rob_full = 1;
     end
 
-    re.pc = regs_dis_reg.pc;
-    re.instruction = regs_dis_reg.instruction;
+    re.pc = dec_dis_reg.pc;
+    re.instruction = dec_dis_reg.instruction;
     // Empty rob entry if it's unsupported
     if (ctrl_bits.unsupported)
       re.ready = 1;
@@ -204,31 +204,31 @@ module scheduler
     // Prepare for unconditional jump
     end else if (ctrl_bits.ucjump) begin
       re.ctrl_bits = ctrl_bits;
-      re.rd = regs_dis_reg.rd;
+      re.rd = dec_dis_reg.rd;
       //if (!ctrl_bits.alusrc) begin
-      //  re.value = regs_dis_reg.pc + 4;
+      //  re.value = dec_dis_reg.pc + 4;
       //end
     // Otherwise behave as normal
     end else if (ctrl_bits.aluop == LUI) begin
       re.ready = 1;
-      re.rd = regs_dis_reg.rd;
-      re.value = regs_dis_reg.imm;
+      re.rd = dec_dis_reg.rd;
+      re.value = dec_dis_reg.imm;
     end if (ctrl_bits) begin
-      re.rd = regs_dis_reg.rd;
+      re.rd = dec_dis_reg.rd;
       re.ctrl_bits = ctrl_bits;
 
       if (ctrl_bits.cjump)
-        re.value = regs_dis_reg.jumpto; // TODO: DANGER: PC + 4 should be here
+        re.value = dec_dis_reg.jumpto; // TODO: DANGER: PC + 4 should be here
     end
   end
 
   // Create Map Table Entries
   always_comb begin
-    control_bits ctrl_bits = regs_dis_reg.ctrl_bits;
+    control_bits ctrl_bits = dec_dis_reg.ctrl_bits;
     mte = 0;
     
     // Didn't think code would actually do something like this for me to protect against
-    if (regs_dis_reg.rd == 0)
+    if (dec_dis_reg.rd == 0)
       mte = 0;
     // No map table entry needed for Unsupported and Ecall
     else if (ctrl_bits.unsupported || ctrl_bits.ecall) begin
@@ -248,7 +248,7 @@ module scheduler
 
   // Create LSQ Entries
   always_comb begin
-    control_bits ctrl_bits = regs_dis_reg.ctrl_bits;
+    control_bits ctrl_bits = dec_dis_reg.ctrl_bits;
     int previous_le = lsq_tail > 1 ? lsq_tail - 2 : `LSQ_SIZE - 1;
     le = 0;
 

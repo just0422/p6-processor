@@ -38,6 +38,7 @@ module top
   input  [BUS_DATA_WIDTH-1:0] bus_resp,
   input  [BUS_TAG_WIDTH-1:0] bus_resptag
 );
+  logic DEBUG = 1;
 
   logic [63:0] pc, next_pc;
 
@@ -82,8 +83,6 @@ module top
   always @ (posedge clk)
     if (reset) begin
       pc <= entry;
-    end else begin
-//      $finish;
     end
 
   /************************** HAZARD DETECTION *****************************/
@@ -127,6 +126,7 @@ module top
     if (flush) begin
       IorD <= 0;
       RorW <= 0;
+      reserver <= `IREAD;
     end else if (!busy) begin
       if (mem_write) begin
         RorW <= 1;
@@ -148,21 +148,19 @@ module top
       end
     end
   end
-
-
-  always_ff @ (posedge clk) begin : cache_return
+  
+  always_ff @(posedge clk) begin
     data_finished1 <= 0;
     if(data_finished) begin
       RorW <= 0;
       IorD <= 0;
+      reserver <= `IREAD;
       if (reserver == `WRITE1) begin
         mem_write <= 0;
-        reserver <= 0;
       end else if (reserver == `READ1) begin
         data_response1 <= cache_response;
         data_finished1 <= 1;
         mem_read1 <= 0;
-        reserver <= 0;
       end
     end
   end
@@ -304,6 +302,10 @@ module top
   Register decode_rs1;
   Register decode_rs2;
   Register decode_rd;
+  MemoryWord decode_val1;
+  MemoryWord decode_val2;
+  MemoryWord register_file [`NUMBER_OF_REGISTERS - 1 : 0];
+
   Immediate decode_imm;
   control_bits decode_ctrl_bits;
 
@@ -311,10 +313,13 @@ module top
     // Input
     .instruction(fet_dec_reg.instruction),
     .branch_taken(fet_dec_reg.branch_prediction),
+    .register_file(register_file),
 
     // Output
     .register_source_1(decode_rs1),
     .register_source_2(decode_rs2),
+    .register_value_1(decode_val1),
+    .register_value_2(decode_val2),
     .register_destination(decode_rd),
     .imm(decode_imm),
     .ctrl_bits(decode_ctrl_bits)
@@ -322,21 +327,26 @@ module top
 
   always_ff @(posedge clk) begin
     if (flush)
-      dec_regs_reg <= 0;
+      dec_dis_reg <= 0;
     else if (!frontend_stall)
-      dec_regs_reg <= {fet_dec_reg.instruction,
+      dec_dis_reg <= {fet_dec_reg.instruction,
                        fet_dec_reg.pc, 
                        fet_dec_reg.jumpto,
-                       decode_rs1, decode_rs2, decode_rd, decode_imm, 
                        decode_ctrl_bits};
+      dec_dis_reg <= { fet_dec_reg.instruction, 
+                       fet_dec_reg.pc, 
+                       fet_dec_reg.jumpto,
+                       decode_rs1, decode_rs2, decode_rd, 
+                       decode_val1, decode_val2,
+                       decode_imm,
+                       decode_ctrl_bits };
   end
   
-  decode_registers_register dec_regs_reg;
-  /************************ REGISTER FETCH ******************************/
+  decode_dispatch_register dec_dis_reg;
+  /************************ REGISTER FETCH ******************************
   MemoryWord rs1_value;
   MemoryWord rs2_value;
   MemoryWord imm_value;
-  MemoryWord register_file [`NUMBER_OF_REGISTERS - 1 : 0];
 
   register_file register_update (
     // House keeping
@@ -364,7 +374,8 @@ module top
                         dec_regs_reg.ctrl_bits };
   end
 
-  registers_dispatch_register regs_dis_reg;
+  registers_dispatch_register regs_dis_reg;*/
+
   /*********************** INSTRUCTION DISPATCH ***********************/
   logic nop; // Did the front end stall??
   logic rob_increment, rob_decrement, rob_full;
@@ -406,7 +417,7 @@ module top
     .lsq(lsq),
     .map_table(map_table),
     .res_stations(res_stations),
-    .regs_dis_reg(regs_dis_reg),
+    .dec_dis_reg(dec_dis_reg),
 
     // Need to include the CDB
     .cdb1(cdb1),
@@ -785,21 +796,24 @@ module top
   logic write_regwr;
   always_ff @(posedge clk) begin
     //lsq_dec <= 0;
-    write_rd <= 0; write_data <= 0;
+    write_rd <= 0;
+    write_data <= 0;
     write_regwr <= 0;
     //victim <= 0;  // HELP: DO I need this or does the Victim hang around until changed??
 
     //if (write_finished)
     //  mem_write <= 0;
     if (retire_re.ready && !retire_stall) begin
-      $display("%5d - %x - %x", x, retire_re.pc, retire_re.instruction);
-      if (retire_re.instruction == 64'h00008067)
-        $display("\tReturn");
-      case (retire_re.instruction[6:0])
-        7'b1101111: $display("\tJAL");
-        7'b1100111: $display("\tJALR");
-        7'b1100011: $display("\tBranch");
-      endcase
+      if (DEBUG) begin
+        $display("%5d - %x - %x", x, retire_re.pc, retire_re.instruction);
+        if (retire_re.instruction == 64'h00008067)
+          $display("\tReturn");
+        case (retire_re.instruction[6:0])
+          7'b1101111: $display("\tJAL");
+          7'b1100111: $display("\tJALR");
+          7'b1100011: $display("\tBranch");
+        endcase
+      end
       if (retire_regwr) begin
         write_rd <= retire_rd;
         write_data <= retire_value;

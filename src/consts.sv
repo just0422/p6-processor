@@ -193,7 +193,7 @@ typedef struct packed {
 } fetch_decode_register;
 
 // Register between decode and register fetch
-typedef struct packed {
+/*typedef struct packed {
   InstructionWord instruction;
   Address pc;
   Address jumpto;
@@ -202,7 +202,7 @@ typedef struct packed {
   Register rd;
 	Immediate imm;
 	control_bits ctrl_bits;
-} decode_registers_register;
+} decode_registers_register;*/
 
 // Register between register fetch and dipatch
 typedef struct packed {
@@ -216,7 +216,7 @@ typedef struct packed {
   MemoryWord rs2_value;
 	Immediate imm;
 	control_bits ctrl_bits;
-} registers_dispatch_register;
+} decode_dispatch_register;
 
 typedef struct packed {
   RobSize tag;

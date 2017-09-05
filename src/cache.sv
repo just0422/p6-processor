@@ -125,6 +125,7 @@ logic DEBUG = 0;
           read_data_finished = 1;
           //data_miss = 0;
           miss = 0;
+          busy = 0;
           reserver = 0;
           write_way = i;
 
@@ -236,7 +237,7 @@ logic DEBUG = 0;
       evicting = 1;
       eviction_start = 1;
       if (DEBUG)
-        $display("\t%4d - EVICTING -> %b - %b - %b", x, cl.tag, index, 6'b0);
+        $display("\t%4d - EVICTING -> (%x) - %b - %b - %b", x, eviction_address,  cl.tag, index, 6'b0);
       //$display ("\t%4d - EVICTING -> %x", x, cl.cache_cells);
     end
   endtask
@@ -428,7 +429,7 @@ logic DEBUG = 0;
       bus_reqtag <= `MEM_WRITE;
       bus_reqcyc <= 1;
       bus_req <= eviction_address;
-      start_sending_out <= 0;
+      eviction_index <= 0;
     end else if (miss) begin
       bus_req <= address_register & `MEMORY_MASK;// + (current_request_offset * `CELLS_NEEDED_B);
       bus_reqtag <= `MEM_READ;
@@ -443,16 +444,23 @@ logic DEBUG = 0;
   always_ff @(posedge clk) begin : request_acknowledged
     if (bus_reqack) begin
       eviction_start = 0;
-      bus_reqcyc <= 0;
-      bus_req <= 0;
-      bus_reqtag <= 0;
+      if (evicting) begin
+        sent_out <= 0;
+
+        bus_reqcyc <= 1;
+        bus_reqtag <= `MEM_WRITE;
+        bus_req <= eviction_ccs[eviction_index];
+        if (eviction_index == 7) begin
+          sent_out <= 1;
+        end
+        eviction_index <= eviction_index + 1;
+      end else begin
+        bus_reqcyc <= 0;
+        bus_reqtag <= 0;
+        bus_req <= 0;
+      end
     end
 
-    if (evicting && bus_reqack) begin
-      start_sending_out <= 1;
-      sent_out <= 0;
-      eviction_index <= 0;
-    end 
   end
 
   /******************* STEP 2c **************************/
@@ -460,35 +468,34 @@ logic DEBUG = 0;
   logic sent_out;
   logic [2:0] eviction_index;
   always_ff @(posedge clk) begin : receive_response
-    if (evicting) begin
-      if (start_sending_out) begin
-        bus_req <= eviction_ccs[eviction_index];
-        if (eviction_index == 7) begin
-          start_sending_out <= 0;
-          sent_out <= 1;
-        end
-        eviction_index <= eviction_index + 1;
-      end
-    end else begin
-      invalidating <= 0;
-      bus_respack <= 0;
-      response_received <= 0;
+    if (sent_out) begin // && bus_respcyc) begin
+      sent_out <= 0;
+      evicting = 0;
 
-      // ** Should reach here second also
-      // Acknowledge that response was received
-      if (bus_respcyc) begin
-        response_register <= bus_resp;
-        bus_respack <= 1;
-        response_received <= 1;
-      end
+      //bus_respack <= 1;
+      bus_reqcyc <= 0;
+      bus_reqtag <= 0;
+      bus_req <= 0;
+    end
+   
+    invalidating <= 0;
+    bus_respack <= 0;
+    response_received <= 0;
 
-      if (bus_resptag == `MEM_READ) begin
-        waiting <= 0;
-        inserting <= 1;
-      end
-      if (bus_resptag == `INVALIDATE) begin
-        invalidating <= 1;
-      end
+    // ** Should reach here second also
+    // Acknowledge that response was received
+    if (bus_respcyc) begin
+      response_register <= bus_resp;
+      bus_respack <= 1;
+      response_received <= 1;
+    end
+
+    if (bus_resptag == `MEM_READ) begin
+      waiting <= 0;
+      inserting <= 1;
+    end
+    if (bus_resptag == `INVALIDATE) begin
+      invalidating <= 1;
     end
   end
 
@@ -496,14 +503,6 @@ logic DEBUG = 0;
   /******************* STEP 2d **************************/
   always_ff @(posedge clk) begin
     bus_respack <= 0;
-    if (sent_out) begin // && bus_respcyc) begin
-      sent_out <= 0;
-      evicting = 0;
-
-      //bus_respack <= 1;
-      bus_reqtag <= 0;
-      bus_req <= 0;
-    end
   end
 
   /******************* STEP 3 **************************/
@@ -561,7 +560,7 @@ logic DEBUG = 0;
   always_comb begin
     logic [`DATA_SIZE * `CELLS_NEEDED - 1 : 0] value = response_cache_line_register;
     Address instruction_insert_address, data_insert_address, data_insert_address2;
-    inserted = 0;
+    //inserted = 0;
     inserted_instruction_flushed = 0;
     inserted_data_flushed = 0;
 
@@ -609,6 +608,16 @@ logic DEBUG = 0;
       instruction_way <= instruction_way_insert_register;
       inserting <= 0;
     end else*/
+
+    if (inserted && !evicting) begin
+      inserting <= 0;
+      inserted = 0;
+      if (IorD)
+        data_way <= data_way_insert_register;
+      else
+        instruction_way <= instruction_way_insert_register;
+    end
+    /*
     if (inserted && IorD) begin//(
 //          (reserver_reg.read1) || 
 //          (reserver_reg.read2) ||
@@ -616,10 +625,10 @@ logic DEBUG = 0;
     //if (inserted && ((mem_read1 && reserver_reg.read1) || (mem_read2 && reserver_reg.read2))) begin
       data_way <= data_way_insert_register;
       inserting <= 0;
-    end else if (inserted && ~IorD) begin //instruction_read && reserver_reg.iread) begin
+    end else if (inserted && !IorD) begin //instruction_read && reserver_reg.iread) begin
       instruction_way <= instruction_way_insert_register;
       inserting <= 0;
-    end
+    end*/
   end
 
   /******************* STEP 5 **************************/
