@@ -313,13 +313,10 @@ module top
     // Input
     .instruction(fet_dec_reg.instruction),
     .branch_taken(fet_dec_reg.branch_prediction),
-    .register_file(register_file),
 
     // Output
     .register_source_1(decode_rs1),
     .register_source_2(decode_rs2),
-    .register_value_1(decode_val1),
-    .register_value_2(decode_val2),
     .register_destination(decode_rd),
     .imm(decode_imm),
     .ctrl_bits(decode_ctrl_bits)
@@ -333,45 +330,11 @@ module top
                        fet_dec_reg.pc, 
                        fet_dec_reg.jumpto,
                        decode_rs1, decode_rs2, decode_rd, 
-                       decode_val1, decode_val2,
                        decode_imm,
                        decode_ctrl_bits };
   end
   
   decode_dispatch_register dec_dis_reg;
-  /************************ REGISTER FETCH ******************************
-  MemoryWord rs1_value;
-  MemoryWord rs2_value;
-  MemoryWord imm_value;
-
-  register_file register_update (
-    // House keeping
-    .clk(clk), .reset(reset),
-    
-    // Register file input
-    .register_file(register_file),
-
-    // Register Read Inputs
-    .rs1_in(dec_regs_reg.rs1),  .rs2_in(dec_regs_reg.rs2),
-    // Register Read Outputs
-    .rs1_out(rs1_value),        .rs2_out(rs2_value)
-
-    // Register Write Inputs
-    // .rd(write_rd), .data(write_data), .regwr(write_regwr)
-  );
-
-  always_ff @(posedge clk) begin
-    if (flush)
-      regs_dis_reg <= 0;
-    else if (!frontend_stall)
-      regs_dis_reg <= { dec_regs_reg.instruction, dec_regs_reg.pc, dec_regs_reg.jumpto,
-                        dec_regs_reg.rs1, dec_regs_reg.rs2, dec_regs_reg.rd, 
-                        rs1_value, rs2_value, dec_regs_reg.imm,
-                        dec_regs_reg.ctrl_bits };
-  end
-
-  registers_dispatch_register regs_dis_reg;*/
-
   /*********************** INSTRUCTION DISPATCH ***********************/
   logic nop; // Did the front end stall??
   logic rob_increment, rob_decrement, rob_full;
@@ -413,7 +376,17 @@ module top
     .lsq(lsq),
     .map_table(map_table),
     .res_stations(res_stations),
-    .dec_dis_reg(dec_dis_reg),
+
+    .pc(dec_dis_reg.pc),
+    .instruction(dec_dis_reg.instruction),
+    .jumpto(dec_dis_reg.jumpto),
+    .rs1(dec_dis_reg.rs1),
+    .rs2(dec_dis_reg.rs2),
+    .rd(dec_dis_reg.rd),
+    .val1(register_file[dec_dis_reg.rs1]),
+    .val2(register_file[dec_dis_reg.rs2]),
+    .immediate(dec_dis_reg.imm),
+    .ctrl(dec_dis_reg.ctrl_bits),
 
     // Need to include the CDB
     .cdb1(cdb1),

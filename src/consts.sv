@@ -212,8 +212,6 @@ typedef struct packed {
 	Register rs1;
   Register rs2;
   Register rd;
-  MemoryWord rs1_value;
-  MemoryWord rs2_value;
 	Immediate imm;
 	control_bits ctrl_bits;
 } decode_dispatch_register;
