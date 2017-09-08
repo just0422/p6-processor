@@ -55,7 +55,7 @@ module cache
   //output data_busy
 );
 
-logic DEBUG = 0;
+logic DEBUG = 1;
 
   cache_block [`WAYS - 1 : 0] data_way; // 32 KB Data Cache
   cache_block [`WAYS - 1 : 0] instruction_way; // 32 KB Instruction Cache
@@ -143,7 +143,7 @@ logic DEBUG = 0;
             LB : value = { { 56 {  byte_cells[ca.offset][7] } }, byte_cells[ca.offset] };
             LWU: value = word_cells[ca.offset >> 2] & 32'hFFFFFFFF;
             LHU: value = half_cells[ca.offset >> 1] & 16'hFFFF;
-            LBU: value = half_cells[ca.offset] &  8'hFF;
+            LBU: value = byte_cells[ca.offset] &  8'hFF;
           endcase
         end
       end
@@ -207,9 +207,11 @@ logic DEBUG = 0;
         cache_block cb = fc_in[i];
         cache_line cl = cb[ca.index];
 
+        if (DEBUG)
+          $display("\t%4d - INVALIDATE\n\t\tcache address - %x\n\t\tcache line - %x", x, ca, cl);
         if (ca.tag == cl.tag) begin
           if (DEBUG)
-            $display("\t%4d - INVALIDATE\tway - %1d\tcache address - %x", x, i, ca);
+            $display("\t%4d - INVALIDATE\tcache address - %x", x, ca);
           cl.valid = 0;
           cb[ca.index] = cl;
           fc_in[i] = cb;
