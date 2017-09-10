@@ -137,18 +137,18 @@ typedef enum logic[3:0] {
 typedef enum logic { LOAD, STORE } memory_instruction_category;
 
 // ALU operation
-typedef enum logic [5:0] {
+typedef enum logic [5:0] {                // 36
   // Normal ALU
-  ADD, SUB, AND, OR, XOR,
-  SLT, SRL, SRA, SLL,
-  ADDW, SUBW, SLTW, SRAW, SRLW, SLLW,
-  BEQ, BNE, BGE, BLT, BGEU, BLTU,
-  LUI,
+  ADD, SUB, AND, OR, XOR,                 // 5
+  SLT, SLTU, SRL, SRA, SLL,               // 5
+  ADDW, SUBW, SRAW, SRLW, SLLW,           // 5
+  BEQ, BNE, BGE, BLT, BGEU, BLTU,         // 6
+  LUI, JALR,                              // 2
   //M extention
-  MUL, MULH, MULHU, MULHSU,
-  MULW, DIV, DIVU, REM,
-  REMU, DIVW, DIVUW,
-  REMW, REMUW
+  MUL, MULH, MULHU, MULHSU,               // 4
+  MULW, DIV, DIVU, REM,                   // 4
+  REMU, DIVW, DIVUW,                      // 3
+  REMW, REMUW                             // 2
 } alu_operation;
 
 typedef struct packed {

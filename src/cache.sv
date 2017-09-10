@@ -55,7 +55,7 @@ module cache
   //output data_busy
 );
 
-logic DEBUG = 1;
+logic DEBUG = 0;
 
   cache_block [`WAYS - 1 : 0] data_way; // 32 KB Data Cache
   cache_block [`WAYS - 1 : 0] instruction_way; // 32 KB Instruction Cache
@@ -207,8 +207,6 @@ logic DEBUG = 1;
         cache_block cb = fc_in[i];
         cache_line cl = cb[ca.index];
 
-        if (DEBUG)
-          $display("\t%4d - INVALIDATE\n\t\tcache address - %x\n\t\tcache line - %x", x, ca, cl);
         if (ca.tag == cl.tag) begin
           if (DEBUG)
             $display("\t%4d - INVALIDATE\tcache address - %x", x, ca);
@@ -326,6 +324,10 @@ logic DEBUG = 1;
       cache_address ca = address;
       logic write_data_finished = 0;
 
+      logic [`WORD - 1 : 0] word = value[`WORD - 1 : 0];
+      logic [`HALF - 1 : 0] half = value[`HALF - 1 : 0];
+      logic [`BYTE - 1 : 0] bite = value[`BYTE - 1 : 0];
+
 
       read_data(address, LD, data_way, write_data_finished, response, write_line, write_way);
       
@@ -333,13 +335,13 @@ logic DEBUG = 1;
       double_line[ca.offset >> 3] = value;
 
       word_line = write_line;
-      word_line[ca.offset >> 2] = value;
+      word_line[ca.offset >> 2] = word;
       
       half_line = write_line;
-      half_line[ca.offset >> 1] = value;
+      half_line[ca.offset >> 1] = half;
 
       byte_line = write_line;
-      byte_line[ca.offset] = value;
+      byte_line[ca.offset] = bite;
 
       //words = (response & 32'hFFFFFFFF << ((!ca.offset >> 2) * 32)) | (value << ((ca.offset >> 2) * 32));
       //halfs = (response & 16'hFFFF     << ((!ca.offset >> 3) * 16)) | (value << ((ca.offset >> 3) * 16));

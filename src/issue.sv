@@ -4,9 +4,11 @@ module issue
   input reset,
 
   // Used to find the next res_station
-  input rs_entry res_stations[`RS_SIZE-1:0],
+  input rob_entry rob[`ROB_SIZE - 1 : 0],
+  input rs_entry res_stations[`RS_SIZE - 1 : 0],
   input lsq_entry lsq[`LSQ_SIZE - 1 : 0],
 
+  input int rob_head, rob_tail,
   input int lsq_head, lsq_tail,
 
   // Output Needed Issue values
@@ -39,6 +41,34 @@ module issue
       return 0;
     end
   endfunction
+
+  function earlier_jump;
+    input int rob_tag;
+    begin
+      //$display("Got Here - %1d - %1d - %1d", rob_head, rob_tail, rob_tag);
+      if (rob_head <= rob_tail) begin
+        for (int i = rob_head; i < rob_tag; i++) begin
+          //$display("\t\t%x - %x - %b - %b", rob[i - 1].pc, rob[i- 1].instruction, rob[i - 1].ctrl_bits.ucjump, rob[i - 1].ctrl_bits.cjump);
+          if (rob[i - 1].ctrl_bits.ucjump || rob[i - 1].ctrl_bits.cjump) begin
+            return 1;
+          end
+        end
+      end else begin
+        for (int i = rob_head; i <= `ROB_SIZE; i++) begin
+          if (rob[i - 1].ctrl_bits.ucjump || rob[i - 1].ctrl_bits.cjump) begin
+            return 1;
+          end
+        end
+        for (int i = 1; i <= rob_tag; i++) begin
+          if (rob[i - 1].ctrl_bits.ucjump || rob[i - 1].ctrl_bits.cjump) begin
+            return 1;
+          end
+        end
+      end
+      return 0;
+    end
+  endfunction
+
   
   always_comb begin : issue
     int first_selected;
@@ -59,7 +89,8 @@ module issue
           !res_stations[i].tag_2) begin // Second tag is free
 
         if (res_stations[i].ctrl_bits.memtoreg) begin
-          if (earlier_store(res_stations[i].lsq_id)) begin
+          //$display("%d - %x - %x", res_stations[i].tag, rob[res_stations[i].tag - 1].pc, rob[res_stations[i].tag - 1].instruction);
+          if (earlier_store(res_stations[i].lsq_id) || earlier_jump(res_stations[i].tag)) begin
             continue;
           end
           

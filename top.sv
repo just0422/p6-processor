@@ -45,8 +45,8 @@ module top
   int x = 0;
   always_ff @(posedge clk) begin
     x++;
-    if (x > 20000)
-      $finish;
+    //if (x > 51460)
+    //  $finish;
   end
 
   // Init data structures
@@ -526,6 +526,7 @@ module top
 
     // Needed to find the next Reservation Station
     .res_stations(res_stations),
+    .rob(rob), .rob_head(rob_head), .rob_tail(rob_head),
     .lsq(lsq), .lsq_head(lsq_head), .lsq_tail(lsq_tail),
 
     // Outputs for each pipeline

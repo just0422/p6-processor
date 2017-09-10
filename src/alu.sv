@@ -72,16 +72,17 @@ module alu (
       BLTU      :   take_branch = sourceAMU < sourceBMU;
       BGEU      :   take_branch = sourceAMU >= sourceBMU;
 
-      SLT       :   result = ctrl_bits.usign ? sourceAMU < sourceBMU : sourceAMS < sourceBMS;
-      SLTW      :   result = ctrl_bits.usign ? sourceAHU < sourceBHU : sourceAHS < sourceBHS;
+      SLT       :   result = sourceAMS < sourceBMS;
+      SLTU      :   result = sourceAMU < sourceBMU;
       
       SLL       :   result = sourceAMS << sourceBMU[5:0];
       SRL       :   result = sourceAMS >> sourceBMU[5:0];
       SRA       :   result = sourceAMS >>> sourceBMU[5:0];
 
-      SLLW      :   result = { {32 {result_sllw[31]} }, result_sllw}; 
-      SRLW      :   result = { {32 {result_srlw[31]} }, result_srlw}; 
-      SRAW      :   result = { {32 {result_sraw[31]} }, result_sraw}; 
+      SLLW      :   result = { {32 {result_sllw[31]} }, result_sllw[31:0]}; 
+      SRLW      :   result = { {32 {result_srlw[31]} }, result_srlw[31:0]}; 
+      SRAW      :   result = { {32 {result_sraw[31]} }, result_sraw[31:0]}; 
+      JALR      :   result = result_add & 0'hFFFFFFFE;
     endcase
   end
 endmodule
