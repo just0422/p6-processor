@@ -138,8 +138,8 @@ logic DEBUG = 0;
           // value = _____[ca.offset]
           case(memory_type)
             LD : value = double_cells[ca.offset >> 3];
-            LW : value = { { 32 { word_cells[ca.offset][31] } }, word_cells[ca.offset >> 2] };
-            LH : value = { { 48 { half_cells[ca.offset][15] } }, half_cells[ca.offset >> 1] };
+            LW : value = { { 32 { word_cells[ca.offset >> 2][31] } }, word_cells[ca.offset >> 2] };
+            LH : value = { { 48 { half_cells[ca.offset >> 2][15] } }, half_cells[ca.offset >> 1] };
             LB : value = { { 56 {  byte_cells[ca.offset][7] } }, byte_cells[ca.offset] };
             LWU: value = word_cells[ca.offset >> 2] & 32'hFFFFFFFF;
             LHU: value = half_cells[ca.offset >> 1] & 16'hFFFF;

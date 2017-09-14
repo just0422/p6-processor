@@ -12,8 +12,9 @@ module alu (
 );
 
   always_comb begin
-    DoubleWord result_mul;
-    MemoryWord result_add, result_sub, result_div, result_divw;
+    DoubleWord result_mul, result_mulhsu;
+    MemoryWord result_add, result_sub, result_div, result_divw, result_mulw;
+    HalfWord result_addw, result_subw;
     MemoryWord result_rem, result_remw;
     HalfWord result_sllw, result_srlw, result_sraw;
 
@@ -29,6 +30,9 @@ module alu (
     result_mul = sourceAMS * sourceBMS;
     result_div = sourceAMS / sourceBMS;
     result_rem = sourceAMS % sourceBMS;
+    result_addw = sourceAHS + sourceBHS;
+    result_subw = sourceAHS - sourceBHS;
+    result_mulw = sourceAHS * sourceBHS;
     result_divw = sourceAHS / sourceBHS;
     result_remw = sourceAHS % sourceBHS;
     if (ctrl_bits.usign) begin
@@ -37,9 +41,14 @@ module alu (
       result_mul = sourceAMU * sourceBMU;
       result_div = sourceAMU / sourceBMU;
       result_rem = sourceAMU % sourceBMU;
+      result_addw = sourceAHU + sourceBHU;
+      result_subw = sourceAHU - sourceBHU;
+      result_mulw = sourceAHU * sourceBHU;
       result_divw = sourceAHU / sourceBHU;
       result_remw = sourceAHU % sourceBHU;
     end
+
+    result_mulhsu = sourceAHS * sourceBHU;
 
     result_sllw = sourceAHS << sourceBHU[4:0];
     result_srlw = sourceAHS >> sourceBHU[4:0];
@@ -55,13 +64,14 @@ module alu (
       SUB       :   result = result_sub;
       MUL       :   result = result_mul[ 63 :  0];
       DIV,DIVU  :   result = result_div;
-      REM,REMU  :   result = result_div;
+      REM,REMU  :   result = result_rem;
 
       MULHU,MULH:   result = result_mul[127 : 64];
+      MULHSU    :   result = result_mulhsu[127 : 64];
 
-      ADDW      :   result = { {32 {!ctrl_bits.usign & result_add[31] } }, result_add[31:0] };
-      SUBW      :   result = { {32 {!ctrl_bits.usign & result_sub[31] } }, result_sub[31:0] };
-      MULW      :   result = { {32 {!ctrl_bits.usign & result_mul[31] } }, result_mul[31:0] };
+      ADDW      :   result = { {32 {!ctrl_bits.usign & result_add[31] } }, result_addw[31:0] };
+      SUBW      :   result = { {32 {!ctrl_bits.usign & result_sub[31] } }, result_subw[31:0] };
+      MULW      :   result = { {32 {!ctrl_bits.usign & result_mul[31] } }, result_mulw[31:0] };
       DIVW,DIVUW:   result = { {32 {!ctrl_bits.usign & result_divw[31] } }, result_divw[31:0] };
       REMW,REMUW:   result = { {32 {!ctrl_bits.usign & result_remw[31] } }, result_remw[31:0] };
 
@@ -82,6 +92,7 @@ module alu (
       SLLW      :   result = { {32 {result_sllw[31]} }, result_sllw[31:0]}; 
       SRLW      :   result = { {32 {result_srlw[31]} }, result_srlw[31:0]}; 
       SRAW      :   result = { {32 {result_sraw[31]} }, result_sraw[31:0]}; 
+
       JALR      :   result = result_add & 0'hFFFFFFFE;
     endcase
   end

@@ -94,7 +94,7 @@ module memory
 						end
           end
         end else begin
-          for (int i = lsq_id - 1; i > 0; i --) begin
+          for (int i = lsq_head; i <= `LSQ_SIZE; i++) begin
             if (lsq[i - 1].address == address && lsq[i - 1].category == STORE) begin
 							result1 = lsq[i - 1].value; 
 
@@ -103,7 +103,7 @@ module memory
 							le.ready = 1;
 						end
           end
-          for (int i = `LSQ_SIZE; i >= lsq_head; i--) begin
+          for (int i = 1; i < lsq_id; i++) begin
             if (lsq[i - 1].address == address && lsq[i - 1].category == STORE) begin
 							result1 = lsq[i - 1].value; 
 

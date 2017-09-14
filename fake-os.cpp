@@ -379,7 +379,7 @@ extern "C" {
                 System::sys->ram[pw->first] = pw->second;
                 pending_writes.erase(pw);
             }
-        if (ECALL_DEBUG) cerr << "Calling syscall " << std::dec << a7;
+        if (ECALL_DEBUG) cerr << "Calling syscall " << std::dec << a7 << endl;
 
         iovec* iov = (iovec*)a1;
         if (a7 == __NR_writev)

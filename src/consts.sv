@@ -174,6 +174,9 @@ typedef struct packed {
 typedef logic [$clog2(`ROB_SIZE) : 0] RobSize;
 typedef logic [$clog2(`LSQ_SIZE) : 0] LsqSize;
 typedef logic [$clog2(`RS_SIZE) : 0] ResSize;
+//typedef int RobSize;
+//typedef int LsqSize;
+//typedef int ResSize;
 
 /////////////////////////////////////////////////////////////////////////////////
 /********************************** REGISTERS **********************************/
