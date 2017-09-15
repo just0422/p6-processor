@@ -21,19 +21,25 @@ module issue
 );
 
   function earlier_store;
-    input lsq_id;
+    input int lsq_id;
     begin
-      if (lsq_head <= lsq_tail) begin
-        for (int i = lsq_id - 1; i > lsq_head; i--) begin
+      if (lsq_head < lsq_tail) begin
+        //$display("lsq_head <= lsq_tail -- (%1d,%1d),%1d", lsq_head, lsq_tail, lsq_id);
+        for (int i = lsq_id - 1; i >= lsq_head; i--) begin
+          //$display("Store %x --> %x", i, lsq[i - 1].category == STORE);
           if (lsq[i - 1].category == STORE)
             return 1;
         end
       end else begin
-        for (int i = lsq_id - 1; i > 0; i --) begin
+        for (int i = lsq_head; i <= `LSQ_SIZE; i++) begin
+          if (i == lsq_id)
+            return 0;
           if (lsq[i - 1].category == STORE)
             return 1;
         end
-        for (int i = `LSQ_SIZE; i >= lsq_head; i--) begin
+        for (int i = 1; i < lsq_tail; i++) begin
+          if (i == lsq_id)
+            return 0;
           if (lsq[i - 1].category == STORE)
             return 1;
         end
@@ -46,7 +52,7 @@ module issue
     input int rob_tag;
     begin
       //$display("Got Here - %1d - %1d - %1d", rob_head, rob_tail, rob_tag);
-      if (rob_head <= rob_tail) begin
+      if (rob_head < rob_tail) begin
         for (int i = rob_head; i < rob_tag; i++) begin
           //$display("\t\t%x - %x - %b - %b", rob[i - 1].pc, rob[i- 1].instruction, rob[i - 1].ctrl_bits.ucjump, rob[i - 1].ctrl_bits.cjump);
           if (rob[i - 1].ctrl_bits.ucjump || rob[i - 1].ctrl_bits.cjump) begin
@@ -55,11 +61,14 @@ module issue
         end
       end else begin
         for (int i = rob_head; i <= `ROB_SIZE; i++) begin
-          if (rob[i - 1].ctrl_bits.ucjump || rob[i - 1].ctrl_bits.cjump) begin
+          if (i == rob_tag)
+            return 0;
+          if (rob[i - 1].ctrl_bits.ucjump || rob[i - 1].ctrl_bits.cjump)
             return 1;
-          end
         end
-        for (int i = 1; i <= rob_tag; i++) begin
+        for (int i = 1; i < rob_tail; i++) begin
+          if (i == rob_tag)
+            return 0;
           if (rob[i - 1].ctrl_bits.ucjump || rob[i - 1].ctrl_bits.cjump) begin
             return 1;
           end
@@ -74,6 +83,7 @@ module issue
     int first_selected;
     int second_selected;
     tag1 = 0;
+    lsq_id1 = 0;
     rs_id1 = 0;
     sourceA1 = 0;
     sourceB1 = 0;
@@ -89,6 +99,7 @@ module issue
           !res_stations[i].tag_2) begin // Second tag is free
 
         if (res_stations[i].ctrl_bits.memtoreg) begin
+          //$display("%x - %x - %1d - %1d - %b - %b", rob[res_stations[i].tag - 1].pc, rob[res_stations[i].tag - 1].instruction, res_stations[i].tag, res_stations[i].lsq_id, earlier_store(res_stations[i].lsq_id), earlier_jump(res_stations[i].tag));
           //$display("%d - %x - %x", res_stations[i].tag, rob[res_stations[i].tag - 1].pc, rob[res_stations[i].tag - 1].instruction);
           if (earlier_store(res_stations[i].lsq_id) || earlier_jump(res_stations[i].tag)) begin
             continue;

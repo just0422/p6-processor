@@ -45,8 +45,8 @@ module top
   int x = 0;
   always_ff @(posedge clk) begin
     x++;
-    //if (x > 10000)
-    //  $finish;
+    if (x > 2000)
+      $finish;
   end
 
   // Init data structures
@@ -706,6 +706,8 @@ module top
   );
 
   always_ff @(posedge clk) begin
+    logic dispatch_mte_conflict = 0;
+    logic commit1_regwr_match = 0;
     if (flush) begin
       cdb1 <= 0;
       cdb2 <= 0;
@@ -715,7 +717,10 @@ module top
       
       if (commit_re1)
         rob[commit_re1.tag - 1] <= commit_re1;
-      if (commit_re1.ctrl_bits.regwr && map_table[commit_re1.rd].tag == commit_re1.tag)
+
+      dispatch_mte_conflict = dispatch_re.rd == commit_re1.rd && !frontend_stall;
+      commit1_regwr_match = commit_re1.ctrl_bits.regwr && map_table[commit_re1.rd].tag == commit_re1.tag;
+      if (!dispatch_mte_conflict && commit1_regwr_match)
         map_table[commit_re1.rd] <= commit_mte1;
     end
   end
@@ -794,7 +799,8 @@ module top
 
         // HMMMMM Will a later instruction entering the map table make this useless??
         if (map_table[retire_re.rd].tag == retire_re.tag && 
-            (dispatch_re.rd != retire_re.rd || frontend_stall))
+            (dispatch_re.rd != retire_re.rd || frontend_stall) &&
+            (commit_re1.rd != retire_re.rd || backend_stall))
           map_table[retire_re.rd] <= retire_mte;
       end
 
