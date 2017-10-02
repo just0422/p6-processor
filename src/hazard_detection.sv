@@ -20,12 +20,9 @@ module hazard_detection
   input int rob_head,
 
   // Output
-  output Victim victim, 
-
   output fetch_stall, frontend_stall, backend_stall, retire_stall
 );
 
-  //always_ff @(posedge clk) begin
   always_comb begin
     fetch_stall = reset;
 
@@ -42,8 +39,6 @@ module hazard_detection
   always_comb begin
     backend_stall = reset;
     backend_stall |= data_missed1 || data_busy || data_finished1;
-    //rob_increment = !reset;
-    //rob_increment &= !busy && !overwrite_pc && instruction;
   end
 
   always_comb begin

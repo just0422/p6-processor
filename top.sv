@@ -8,7 +8,6 @@
 `include "src/decoder.sv"
 `include "src/hazard_detection.sv"
 `include "src/issue.sv"
-`include "src/lsq.sv"
 `include "src/memory.sv"
 `include "src/register_file.sv"
 `include "src/retire.sv"
@@ -45,7 +44,8 @@ module top
   int x = 0;
   always_ff @(posedge clk) begin
     x++;
-    if (x > 2000)
+    // cyc limit for debuging
+    if (x > 200000)
       $finish;
   end
 
@@ -87,7 +87,7 @@ module top
 
   /************************** HAZARD DETECTION *****************************/
   logic frontend_stall, backend_stall, fetch_stall, retire_stall;
-  Victim victim;
+
   hazard_detection hazards(
     // Housekeeping
     .clk(clk), .reset(reset),
@@ -110,9 +110,7 @@ module top
     .backend_stall(backend_stall), // Stall when 1
     .frontend_stall(frontend_stall), // Stall when 1
     .fetch_stall(fetch_stall),
-    .retire_stall(retire_stall),
-
-    .victim(victim)
+    .retire_stall(retire_stall)
   );
 
 
@@ -121,6 +119,7 @@ module top
       instruction_read = 1;
   end
 
+  // Reserve the cache for data reads, data writes, and instruction reads
   cache_reserve reserver;
   always_ff @ (posedge clk) begin : cache_reservation
     if (flush) begin
@@ -173,15 +172,8 @@ module top
   memory_instruction_type mem_type;
   MemoryWord cache_response;
 
-  logic [`INSTRUCTION_SIZE-1:0] instruction_response;
-  logic [`ADDRESS_SIZE - 1:0] instruction_address;
   logic instruction_read;
   logic busy;
-  logic flushing;
-  
-  logic [`DATA_SIZE-1:0] d_req_r, d_req_w, d_write, d_data;
-  logic [3:0] req_size_w, req_size_r;
-  logic i_busy, data_busy, write_busy;
 
   logic mem_read1;
   logic data_finished1;
@@ -214,47 +206,21 @@ module top
     .value(value),
     .mem_type(mem_type),
     .response(cache_response)
-         
-/*    .instruction_busy(i_busy),
-    .data_busy(data_busy),
-    .write_busy(write_busy),
-
-    .data_finished1(data_finished1),
-    .write_finished(write_finished),
-    
-    .instruction_read(instruction_read),
-    .instruction_address(pc),
-    .instruction_response(instruction_response),
-
-    // Input Read
-    .mem_read1(mem_read1),
-    .data_read_address1(data_read_address1),
-    .memory_read_type1(memory_read_type1),
-
-    // Outputs Read
-    .data_response1(data_response1),
-    
-    // Input Write
-    .mem_write(mem_write),
-    .memory_write_type(memory_write_type),
-    .data_write_address(data_write_address),
-    .data_write(data_write),
-
-    .flush(flush), .flushing(flushing)*/
   );
 
   always_ff @(posedge clk) begin
-    if (busy) begin
-    end
-
     if (flush) begin
+      // If an instruction is flushing, assign the PC to the jump location
       pc <= jumpto;
       cac_bp_reg <= 0;
     end else if (overwrite_pc && !frontend_stall) begin
+      // If branch was predicted true, assign the PC to the branch location
       pc <= next_pc;
       cac_bp_reg <= 0;
     end else if (!fetch_stall && instruction_finished && !IorD) begin
+      // Grab the instruction from memory
       cac_bp_reg <= { cache_response[`INSTRUCTION_SIZE - 1: 0], pc };
+      // PC += 4
       pc <= pc + 4;
       reserver <= 0;
     end else if (!frontend_stall) begin
@@ -369,7 +335,6 @@ module top
     .rob_count(rob_count),
     .lsq_count(lsq_count),
     .frontend_stall(frontend_stall),
-    .victim(victim),
   
     // Need to read from the hardware structures
     .rob(rob),
@@ -433,11 +398,6 @@ module top
         map_table[i] <= 0;
       end
     end else begin
-      if (!backend_stall) begin
-        lsq <= lsq_register;
-      end
-      //dis_le <= 0;
-      //lsq_inc <= 0;
       if (!frontend_stall) begin
         // add to the rob
         if (dispatch_re) begin
@@ -449,27 +409,21 @@ module top
             rob_count <= rob_count + 1;
 
         end
-
+        
+        // Add to the reservation stations
         if (dispatch_rse) begin
           res_stations[res_station_id] <= dispatch_rse;
           res_stations[res_station_id].id <= res_station_id + 1;
         end
-
+  
+        // Add to the map table
         if (dispatch_mte) begin
           map_table[dispatch_re.rd] <= dispatch_mte;
         end
 
-        lsq <= lsq_register;
-        
+        // Add to the LSQ
         if (dispatch_le) begin
-          //dis_le <= dispatch_le;
-          //lsq_inc <= lsq_increment;
           lsq[lsq_tail - 1] <= dispatch_le;
-          //lsq[0].color <= 1;
-          //lsq[1].color <= 2;
-          //lsq[2].color <= 12;
-          //lsq[3].color <= 13;
-          //lsq[lsq_tail - 1].color <= 10;
 
           lsq_tail <= lsq_tail % `LSQ_SIZE + 1;
           if(lsq_increment ^ lsq_decrement && lsq_increment)
@@ -478,8 +432,6 @@ module top
       end
 
 
-      if (memory_le && !backend_stall) 
-        lsq[memory_le_index - 1] <= memory_le;
     end
   end
 
@@ -608,21 +560,16 @@ module top
 
     .data_missed1(data_missed_lsq1)
   );
-  //always_comb begin
-  //  memory_data1 = exe_mem_reg_1.result;
-  //end
 
   always_ff @(posedge clk) begin
-    //mem_index = 0;
-    //mem_le = 0;
-    data_ready1 = 0;
+    data_ready1 <= 0;
     if (flush) begin
       mem_com_reg_1 <= 0;
       mem_read1 <= 0;
       data_read_address1 <= 0;
     end else if (data_finished1) begin
-      cache_data1 = data_response1;
-      data_ready1 = 1;
+      cache_data1 <= data_response1;
+      data_ready1 <= 1;
       mem_read1 <= 0;
     end else if (data_missed_lsq1) begin
       data_read_address1 <= exe_mem_reg_1.result;
@@ -632,49 +579,10 @@ module top
       mem_com_reg_1 <= { exe_mem_reg_1.tag, exe_mem_reg_1.take_branch, memory_data1, 
                          exe_mem_reg_1.ctrl_bits };
 
-      //mem_index = lsq_pointer;
-      //mem_le = memory_le;
+      if (memory_le)
+        lsq[memory_le_index - 1] <= memory_le;
     end
   end
-
-  ///////////////// LSQ MANAGEMENT ////////////////
-  // WE NEED ALL THESE REGISTERS BECAUSE THE LSQ IS DELAYED 1 CYCLE
-  //    Why you may ask? Because we need to edit the LSQ in multiple places
-  //        Dispatch
-  //        Memory
-  //    That's not allowed
-  /*
-  lsq_entry lsq_register[`LSQ_SIZE - 1 : 0];
-  lsq_entry mem_le, dis_le;
-  logic lsq_inc, lsq_dec;
-  int mem_index;
-  int lsq_tail_register, lsq_head_register, lsq_count_register;
-  load_store_queue load_store_queue(
-    // Housekeeping
-    .clk(clk), .reset(reset),
-
-    // inputs
-    .lsq_tail(lsq_tail), .lsq_head(lsq_head), .lsq_count(lsq_count), 
-    .lsq_increment(lsq_inc), .lsq_decrement(lsq_dec),
-
-    .dispatch_le(dis_le),
-    .memory_le1(mem_le), .mem_index1(mem_index),
-    .lsq(lsq),
-
-    // Outputs
-    .lsq_register(lsq_register),
-    .lsq_tail_register(lsq_tail_register),
-    .lsq_head_register(lsq_head_register),
-    .lsq_count_register(lsq_count_register)
-  );
-  
-  always_ff @(posedge clk) begin
-    lsq <= lsq_register;
-    lsq_tail <= lsq_tail_register;
-    lsq_head <= lsq_head_register;
-    lsq_count <= lsq_count_register;
-  end*/
-
 
   memory_commit_register mem_com_reg_1;
   memory_commit_register mem_com_reg_2;
@@ -770,25 +678,30 @@ module top
   MemoryWord write_data;
   logic write_regwr;
   always_ff @(posedge clk) begin
-    //lsq_dec <= 0;
     write_rd <= 0;
     write_data <= 0;
     write_regwr <= 0;
-    //victim <= 0;  // HELP: DO I need this or does the Victim hang around until changed??
 
-    //if (write_finished)
-    //  mem_write <= 0;
+    // If the ROB entry is ready to retire
     if (retire_re.ready && !retire_stall) begin
       if (DEBUG) begin
         $display("%5d - %x - %x", x, retire_re.pc, retire_re.instruction);
         if (retire_re.instruction == 64'h00008067)
-          $display("\tReturn");
-        case (retire_re.instruction[6:0])
-          7'b1101111: $display("\tJAL");
-          7'b1100111: $display("\tJALR");
-          7'b1100011: $display("\tBranch");
+          $display("\tReturn\t%5d - %x - %x", x, retire_re.pc, jumpto);
+        else case (retire_re.instruction[6:0])
+          7'b1101111: 
+            begin
+              if (retire.rd == 0)
+                $display("\tJump");
+              else
+                $display("\tJAL()\t%5d - %x - %x", x, retire_re.pc, jumpto);
+            end
+          7'b1100111: $display("\tJALR\t%5d - %x - %x", x, retire_re.pc, jumpto);
+          //7'b1100011: $display("\tBranch");
         endcase
       end
+      
+      // Write back to register file and clear map table entry
       if (retire_regwr) begin
         write_rd <= retire_rd;
         write_data <= retire_value;
@@ -797,7 +710,6 @@ module top
         if (retire_rd)
           register_file[retire_rd] <= retire_value;
 
-        // HMMMMM Will a later instruction entering the map table make this useless??
         if (map_table[retire_re.rd].tag == retire_re.tag && 
             (dispatch_re.rd != retire_re.rd || frontend_stall) &&
             (commit_re1.rd != retire_re.rd || backend_stall))
@@ -808,16 +720,14 @@ module top
       rob[rob_head - 1] <= 0;
       rob[rob_head - 1].tag <= retire_re.tag;
       
+      // Increment the rob if we arent flushing
       if (!flush) begin
         rob_head <= rob_head % `ROB_SIZE + 1;
         if (rob_increment ^ rob_decrement && rob_decrement)
           rob_count <= rob_count - 1;
       end
 
-      //if (retire_re.tag == retire_le.tag) begin
-      //  lsq_dec <= lsq_decrement;
-      //end
-      
+      // If there is a load or store, prepare the LSQ for removal
       if (lsq_decrement) begin
         lsq[lsq_head - 1] <= 0;
 
@@ -837,6 +747,7 @@ module top
 
       end
 
+      // Execute an ecall if needed
       if (retire_ecall) begin
         do_ecall(register_file[17], 
                  register_file[10],
@@ -848,12 +759,6 @@ module top
                  register_file[16], 
                register_file[10]);
       end
-
-
-      if (flush)
-        victim <= 0;
-      else if (victimized)
-        victim <= { retire_re.rd, retire_re.value };
     end
   end
    

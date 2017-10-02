@@ -22,9 +22,6 @@ module scheduler
   input MemoryWord val1, val2, immediate,
   input control_bits ctrl,
 
-  // This guy is from the most recently retired ROB Head
-  input Victim victim,
-
   // CDB Inputs
   input cdb cdb1,
   input cdb cdb2,
@@ -68,8 +65,6 @@ module scheduler
       // Check for it in the ROB
       else if (map_table[register_source].tag && map_table[register_source].in_rob)
         rs_value = rob[map_table[register_source].tag - 1].value;
-      //else if (!map_table[register_source].tag && victim.regstr == register_source)
-      //  rs_value = victim.value;
       // Check for it in the register file
       else if (!map_table[register_source].tag)
         rs_value = register_value;

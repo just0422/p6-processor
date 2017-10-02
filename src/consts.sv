@@ -3,6 +3,8 @@
 `define BUS_DATA_WIDTH              64
 `define BUS_TAG_WIDTH               13
 `define BTB_SIZE                    4
+`define CELLS_NEEDED                8
+`define CELLS_NEEDED_B              $clog2(`CELLS_NEEDED - 1)
 `define DATA_SIZE                   64
 `define DIRTY                       1
 `define IMMEDIATE_SIZE              64
@@ -19,8 +21,6 @@
 `define NUMBER_OF_REGISTERS_B       $clog2(`NUMBER_OF_REGISTERS - 1)
 `define OFFSET_SIZE                 64 
 `define OFFSET_SIZE_B               $clog2(`OFFSET_SIZE - 1)
-`define CELLS_NEEDED                8
-`define CELLS_NEEDED_B              $clog2(`CELLS_NEEDED - 1)
 `define ROB_SIZE                    `LSQ_SIZE
 `define RS_SIZE                     `ROB_SIZE
 `define TAG_SIZE_B                  64 - (`OFFSET_SIZE_B + `INDEX_SIZE_B)
@@ -39,6 +39,11 @@
 `define BYTE                        `HALF / 2
 `define BYTE_B                      $clog2(`BYTE - 1) - 3
 
+`define DOUBLE_MASK                 64'hFFFFFFFFFFFFFFFF
+`define WORD_MASK                   32'hFFFFFFFF
+`define HALF_MASK                   16'hFFFF
+`define BYTE_MASK                    8'hFF
+
 
 // Data Structure Lengths
 `define CONTROL_BITS_SIZE           $bits(control_bits)
@@ -49,7 +54,13 @@ typedef logic [1:0][`WORD - 1 : 0]                                    WordMemory
 typedef logic [3:0][`HALF - 1 : 0]                                    HalfMemory;
 typedef logic [7:0][`BYTE - 1 : 0]                                    ByteMemory;
 
+typedef logic [`DOUBLE - 1 : 0]                                       Double;
+typedef logic [`WORD - 1 : 0]                                         Word;
+typedef logic [`HALF - 1 : 0]                                         Half;
+typedef logic [`BYTE - 1 : 0]                                         Byte;
+
 typedef logic [`ADDRESS_SIZE - 1 : 0]                                 Address;
+typedef logic [`CELLS_NEEDED * `DOUBLE - 1 : 0]                       Line;
 typedef logic [`CELLS_NEEDED * 2 - 1 : 0][`INSTRUCTION_SIZE - 1 : 0]  InstructionLine;
 typedef logic [`CELLS_NEEDED - 1 : 0][`DOUBLE - 1 : 0]                DoubleLine;
 typedef logic [`CELLS_NEEDED * 2 - 1 : 0][`WORD - 1 : 0]              WordLine;
@@ -102,9 +113,9 @@ typedef struct packed {
   cache_offset offset;
 } cache_address;
 
-// Cache Block
-// Block size = 32 * (1 + 1 + 53 + 3 * 64) = 18176 bits
+// Cache Cell
 typedef logic [`DATA_SIZE - 1 : 0] cache_cell; // One Cell of Size 64
+// Cache line
 typedef struct packed {
   logic valid;
   logic dirty;
@@ -112,13 +123,15 @@ typedef struct packed {
   Address base_address;
   cache_cell [`CELLS_NEEDED - 1 : 0] cache_cells; // 64 byte offset (8 cells)
 } cache_line;
+// Cache Block = 32 cache lines
 typedef cache_line[`INDEXES_PER_WAY - 1 : 0] cache_block;
+// Way
 typedef cache_block [`WAYS - 1 : 0] full_cache;
 
 typedef logic [`CELLS_NEEDED - 1 : 0][`DATA_SIZE - 1 : 0] CacheCells;
 
 
-
+// BTB Entry
 typedef struct packed {
   logic taken;
   InstructionWord instruction;
@@ -195,19 +208,7 @@ typedef struct packed {
   Address jumpto;
 } fetch_decode_register;
 
-// Register between decode and register fetch
-/*typedef struct packed {
-  InstructionWord instruction;
-  Address pc;
-  Address jumpto;
-	Register rs1;
-  Register rs2;
-  Register rd;
-	Immediate imm;
-	control_bits ctrl_bits;
-} decode_registers_register;*/
-
-// Register between register fetch and dipatch
+// Register between register decode and dipatch
 typedef struct packed {
   InstructionWord instruction;
   MemoryWord pc;
@@ -219,6 +220,7 @@ typedef struct packed {
 	control_bits ctrl_bits;
 } decode_dispatch_register;
 
+// Register between issue and execute
 typedef struct packed {
   RobSize tag;
   LsqSize lsq_id;
@@ -228,6 +230,7 @@ typedef struct packed {
 	control_bits ctrl_bits;
 } issue_execute_register;
 
+// Register between execute and memory
 typedef struct packed {
   RobSize tag;
   LsqSize lsq_id;
@@ -237,6 +240,7 @@ typedef struct packed {
   control_bits ctrl_bits;
 } execute_memory_register;
 
+// Register between memory and commit
 typedef struct packed {
   RobSize tag;
   logic take_branch;
@@ -291,12 +295,9 @@ typedef struct packed {
   memory_instruction_type memory_type;
 } lsq_entry;
 
+// CDB
 typedef struct packed {
   RobSize tag;
   MemoryWord value;
 } cdb;
 
-typedef struct packed {
-  Register regstr;
-  MemoryWord value;
-} Victim;

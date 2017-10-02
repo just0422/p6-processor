@@ -24,6 +24,9 @@ module alu (
     MemoryWordSigned    sourceAMS = sourceA[63 : 0],   sourceBMS = sourceB[63 : 0];
     MemoryWordUnsigned  sourceAMU = sourceA[63 : 0],   sourceBMU = sourceB[63 : 0];
 
+    result = 0; // Reset
+    take_branch = 0; // Reset
+
     // Do some work to see if we need signed results or not;
     result_add = sourceAMS + sourceBMS;
     result_sub = sourceAMS - sourceBMS;
@@ -54,7 +57,6 @@ module alu (
     result_srlw = sourceAHS >> sourceBHU[4:0];
     result_sraw = sourceAHS >>> sourceBHU[4:0];
 
-    take_branch = 0;
     case(ctrl_bits.aluop) 
       AND       :   result = sourceA & sourceB;
       OR        :   result = sourceA | sourceB;
@@ -75,11 +77,11 @@ module alu (
       DIVW,DIVUW:   result = { {32 {!ctrl_bits.usign & result_divw[31] } }, result_divw[31:0] };
       REMW,REMUW:   result = { {32 {!ctrl_bits.usign & result_remw[31] } }, result_remw[31:0] };
 
-      BEQ       :   take_branch = sourceA == sourceB;
-      BNE       :   take_branch = sourceA != sourceB;
-      BLT       :   take_branch = sourceA < sourceB;
-      BGE       :   take_branch = sourceA >= sourceB;
-      BLTU      :   take_branch = sourceAMU < sourceBMU;
+      BEQ       :   take_branch = sourceAMS == sourceBMS;
+      BNE       :   take_branch = sourceAMS != sourceBMS;
+      BLT       :   take_branch = sourceAMS <  sourceBMS;
+      BGE       :   take_branch = sourceAMS >= sourceBMS;
+      BLTU      :   take_branch = sourceAMU <  sourceBMU;
       BGEU      :   take_branch = sourceAMU >= sourceBMU;
 
       SLT       :   result = sourceAMS < sourceBMS;

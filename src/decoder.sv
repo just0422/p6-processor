@@ -55,7 +55,7 @@ module decoder
     register_destination = instruction[11:7];
 
     imm = 0;
-
+    // Assign control bits based off of op codes
     case(opcode)
       7'b0110111: begin // LUI
                     ctrl.regwr = 1; 

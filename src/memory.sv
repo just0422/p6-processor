@@ -28,6 +28,8 @@ module memory
   input                          data_ready1,    data_readyy2,
   input MemoryWord               data_response1, data_response2
 );
+
+
   always_comb begin
     if (!(ctrl_bits.memwr || ctrl_bits.memtoreg))
       result1 = address;
@@ -46,104 +48,20 @@ module memory
       le.address = address;
       le.value = data;
       lsq_pointer = lsq_id;
-
-      if (lsq_head <= lsq_tail) begin
-        // technically lsq_id == LSQ[id + 1]
-        for (int i = lsq_id; i <= lsq_tail; i++) begin
-          if (lsq[i - 1].address == address && lsq[i - 1].category == LOAD) begin
-            lsq_register[i - 1].value = data;
-            lsq_register[i - 1].ready = 1;
-          end
-        end
-      end else begin
-        // technically lsq_id == LSQ[id + 1]
-        for (int i = lsq_id; i <= `LSQ_SIZE; i++) begin
-          if (lsq[i - 1].address == address && lsq[i - 1].category == LOAD) begin
-            lsq_register[i - 1].value = data;
-            lsq_register[i - 1].ready = 1;
-          end
-        end
-
-        for (int i = 1; i <= lsq_tail; i++) begin
-          if (lsq[i - 1].address == address && lsq[i - 1].category == LOAD) begin
-            lsq_register[i - 1].value = data;
-            lsq_register[i - 1].ready = 1;
-          end
-        end
-      end
+      
     end
     
     if (ctrl_bits.memtoreg) begin
-      // Find LSQ Entry
-      if (lsq[lsq_id - 1].ready) begin
-        result1 = lsq[lsq_id - 1].value;
+      if (!data_ready1)
+        data_missed1 = 1;
+      else begin
+        result1 = data_response1;
+        lsq_pointer = lsq_id;
 
         le = lsq[lsq_id - 1];
         le.ready = 1;
-        data_missed1 = 0;
-      end
-      else begin
-				if (lsq_head <= lsq_tail) begin
-          for (int i = lsq_head; i < lsq_id; i++) begin
-            if (lsq[i - 1].address == address && lsq[i - 1].category == STORE) begin
-							result1 = lsq[i - 1].value; 
-
-							le = lsq[lsq_id - 1];
-							le.value = lsq[i - 1].value;
-							le.ready = 1;
-						end
-          end
-        end else begin
-          for (int i = lsq_head; i <= `LSQ_SIZE; i++) begin
-            if (lsq[i - 1].address == address && lsq[i - 1].category == STORE) begin
-							result1 = lsq[i - 1].value; 
-
-							le = lsq[lsq_id - 1];
-							le.value = lsq[i - 1].value;
-							le.ready = 1;
-						end
-          end
-          for (int i = 1; i < lsq_id; i++) begin
-            if (lsq[i - 1].address == address && lsq[i - 1].category == STORE) begin
-							result1 = lsq[i - 1].value; 
-
-							le = lsq[lsq_id - 1];
-							le.value = lsq[i - 1].value;
-							le.ready = 1;
-						end
-          end
-        end
-
-        if (!le) begin
-          if (!data_ready1)
-            data_missed1 = 1;
-          else begin
-            lsq_register[lsq_id - 1].value = data_response1;
-            result1 = data_response1;
-            lsq_pointer = lsq_id;
-          end
-        end
-          // If false
-          //    Request from memoryfor (int i = 0; i < `LSQ_SIZE; i++) begin
+        le.value = data_response1;
       end
     end
   end
-
-  //always_comb begin
-/*    int store_index = 0;
-    if (ctrl_bits.mem_to_reg) begin
-      for (int i = 0; i < `LSQ_SIZE; i++) begin
-        if (lsq_register[i].tag == tag) begin
-          store_index = i;
-        end
-      end
-
-      if (store_index < lsq_tail) begin
-        for (int i = store_index + 1; i < lsq_tail; i++) begin
-          //if(lsq_register[i].address == address ) begin
-          //end
-        end
-      end
-    end
-  end*/
 endmodule

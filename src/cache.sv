@@ -31,28 +31,6 @@ module cache
   input memory_instruction_type mem_type,
 
   output MemoryWord response
-
-  // Instruction Read Request
-  /*input instruction_read,
-  input [`ADDRESS_SIZE - 1 : 0] instruction_address,
-  output [`INSTRUCTION_SIZE - 1 : 0] instruction_response,
-  //output instruction_busy,
-
-  // Data Read Request
-  input                         mem_read1,           mem_read2,
-  input Address                 data_read_address1,  data_read_address2,
-  output MemoryWord             data_response1,      data_response2,
-  output                        data_finished1,      data_finished2,
-  input memory_instruction_type memory_read_type1,   memory_read_type2,
-
-  // Data Write Request
-  input                         mem_write,
-  input Address                 data_write_address,
-  input MemoryWord              data_write,
-  input memory_instruction_type memory_write_type,
-  output                        write_finished,*/
-
-  //output data_busy
 );
 
 logic DEBUG = 0;
@@ -72,9 +50,7 @@ logic DEBUG = 0;
   logic waiting; // Waiting for memory response
   logic inserting; // Are we currently inserting into the cache
   logic evicting; // Am I evicting from memory
-  logic miss;
-  //logic data_miss, instruction_miss;
-  //logic write_data_miss, read_data_miss1, read_data_miss2, instruction_miss; // Did we miss in cache??
+  logic miss; // Did I miss from L1 cache
 
 
   /****************************/
@@ -84,16 +60,17 @@ logic DEBUG = 0;
     input Address address;
     input memory_instruction_type memory_type;
     input full_cache fc_in;
-    //output data_miss;
     output read_data_finished;
     output MemoryWord value;
     output CacheCells value_line;
     output int write_way;
     begin : read_data
-      DoubleLine double_cells;
-      WordLine word_cells;
-      HalfLine half_cells;
-      ByteLine byte_cells;
+      Line line;
+      Double double_value;
+      Word word_value;
+      Half half_value;
+      Byte byte_value;
+      int offset_bytes;
 
       cache_address ca = address;
       
@@ -102,16 +79,10 @@ logic DEBUG = 0;
 
       write_way = -1;
       miss = 1;
-/*
-      if (!waiting && !inserting)
-        //data_miss = 1;
-      else
-        data_miss = 0;
-*/
 
       for (int i = 0; i < `WAYS; i++) begin
-        cache_block cb = fc_in[i];
-        cache_line cl = cb[ca.index];
+        cache_block cb = fc_in[i];  // Get block 'cb' at way[i]
+        cache_line cl = cb[ca.index]; // Get cache line 'cl' cb[index]
         //$display("\t%4d - (CA) %x == %x (CL)\t\tValid - %1d\tWay - %1d", x, ca.tag, cl.tag, cl.valid, i);
         //$display("WAY %2d --- CA == CL (%d)(%x == %x) --- CL Valid (%d)", i, ca.tag == cl.tag, ca.tag, cl.tag, cl.valid);
         if (ca.tag == cl.tag && cl.valid) begin
@@ -123,27 +94,30 @@ logic DEBUG = 0;
           end
 
           read_data_finished = 1;
-          //data_miss = 0;
           miss = 0;
           busy = 0;
           reserver = 0;
           write_way = i;
-
+          
+          // Break up the cache line to cells of appropriate size
+          line = cl.cache_cells;
           value_line = cl.cache_cells;
-          double_cells = cl.cache_cells;
-          word_cells = cl.cache_cells;
-          half_cells = cl.cache_cells;
-          byte_cells = cl.cache_cells;
 
-          // value = _____[ca.offset]
+          offset_bytes = ca.offset * 8;
+          double_value = (line >> offset_bytes) & `DOUBLE_MASK;
+          word_value   = (line >> offset_bytes) & `WORD_MASK;
+          half_value   = (line >> offset_bytes) & `HALF_MASK;
+          byte_value   = (line >> offset_bytes) & `BYTE_MASK;
+
+          // Filter out correct value based on instruction type
           case(memory_type)
-            LD : value = double_cells[ca.offset >> 3];
-            LW : value = { { 32 { word_cells[ca.offset >> 2][31] } }, word_cells[ca.offset >> 2] };
-            LH : value = { { 48 { half_cells[ca.offset >> 1][15] } }, half_cells[ca.offset >> 1] };
-            LB : value = { { 56 {  byte_cells[ca.offset][7] } }, byte_cells[ca.offset] };
-            LWU: value = word_cells[ca.offset >> 2] & 32'hFFFFFFFF;
-            LHU: value = half_cells[ca.offset >> 1] & 16'hFFFF;
-            LBU: value = byte_cells[ca.offset] &  8'hFF;
+            LD : value = double_value;
+            LW : value = { { 32 { word_value[31] } }, word_value };
+            LH : value = { { 48 { half_value[15] } }, half_value };
+            LB : value = { { 56 { byte_value[ 7] } }, byte_value };
+            LWU: value = word_value;
+            LHU: value = half_value;
+            LBU: value = byte_value; 
           endcase
         end
       end
@@ -163,12 +137,7 @@ logic DEBUG = 0;
 
       value = 0;
       miss = 1;
-/*
-      if (!waiting && !inserting) 
-        instruction_miss = 1; 
-      else
-        instruction_miss = 0;
-*/
+
       // No break because no block should ever have the same tag
       for (int i = 0; i < `WAYS; i++) begin
         cache_block cb = fc_in[i];  // Get block 'cb' at way[i]
@@ -176,7 +145,6 @@ logic DEBUG = 0;
         if (ca.tag == cl.tag && cl.valid) begin // IF address tag and cache set tag are the same
           instruction_cells = cl.cache_cells; // Cast cache_cells to instruction_cells for size_purposes
           miss = 0;
-          //instruction_miss = 0;
           busy = 0;
           instruction_finished = 1;
 
@@ -320,35 +288,42 @@ logic DEBUG = 0;
       WordLine word_line;
       HalfLine half_line;
       ByteLine byte_line;
+      Line shifted_value;
       MemoryWord response = 0;
       cache_address ca = address;
+      int offset_bytes = ca.offset * 8;
+      Line double_line_mask = ~(`DOUBLE_MASK << offset_bytes);
+      Line word_line_mask = ~(`WORD_MASK << offset_bytes);
+      Line half_line_mask = ~(`HALF_MASK << offset_bytes);
+      Line byte_line_mask = ~(`BYTE_MASK << offset_bytes);
       logic write_data_finished = 0;
 
       logic [`WORD - 1 : 0] word = value[`WORD - 1 : 0];
       logic [`HALF - 1 : 0] half = value[`HALF - 1 : 0];
       logic [`BYTE - 1 : 0] bite = value[`BYTE - 1 : 0];
 
-
+      // Read line from memory before writing to it
       read_data(address, LD, data_way, write_data_finished, response, write_line, write_way);
       
+      shifted_value = value << offset_bytes;
+      // Insert value into appropriately divided array
       double_line = write_line;
-      double_line[ca.offset >> 3] = value;
+      double_line &= double_line_mask;
+      double_line |= shifted_value;
 
       word_line = write_line;
-      word_line[ca.offset >> 2] = word;
+      word_line &= word_line_mask;
+      word_line |= shifted_value;
       
       half_line = write_line;
-      half_line[ca.offset >> 1] = half;
-
+      half_line &= half_line_mask;
+      half_line |= shifted_value;
+      
       byte_line = write_line;
-      byte_line[ca.offset] = bite;
-
-      //words = (response & 32'hFFFFFFFF << ((!ca.offset >> 2) * 32)) | (value << ((ca.offset >> 2) * 32));
-      //halfs = (response & 16'hFFFF     << ((!ca.offset >> 3) * 16)) | (value << ((ca.offset >> 3) * 16));
-      //bytes = (response &  8'hFF       << ((!ca.offset >> 4) *  8)) | (value << ((ca.offset >> 4) *  8));
-
-      //$display("Inserting Write Data - \t%4d", x);
-      //if (!data_miss && !waiting && !inserting && data_finished) begin
+      byte_line &= byte_line_mask;
+      byte_line |= shifted_value;
+      
+      // Insert the correct array into cache
       if (write_data_finished) begin
         if (DEBUG) begin
           $display("\t%4d - STORE - %x - %x", x, address, value);
@@ -375,24 +350,20 @@ logic DEBUG = 0;
   full_cache data_way_write_register;
   always_comb begin : cache_or_mem
     if (!reset) begin
-      int dud = 0;
-      CacheCells cldud = 0;
+      int dud = 0;  // Dummy value
+      CacheCells cldud = 0; //Dummy Value
 
       busy = 1;
       instruction_finished = 0;
       data_finished = 0;
       miss = 0;
 
+      // If the cache isn't busy attempt to read/write data or read instruction
       if (!waiting && !inserting) begin
-        //data_address_register = data_address;
-        //instruction_address_register = instruction_address;
-
         if (RorW && IorD) begin // Mem Write
-          //data_address_register = data_address;
           insert_data(data_address, value, mem_type);
           address_register = data_address;
         end else if (!RorW && IorD) begin // Mem Read
-          //data_address_register = data_address;
           read_data(data_address, mem_type, data_way, data_finished, response, cldud, dud);
           address_register = data_address;
         end else begin
@@ -404,13 +375,7 @@ logic DEBUG = 0;
     end
   end
 
-  always_ff @(posedge clk) begin
-    if (inserted_data_flushed || inserted_instruction_flushed)
-      reserver_reg <= 0;
-    else
-      reserver_reg <= reserver;
-  end
-
+  // When a write finishes, update the cache
   always_ff @(posedge clk) begin
     if (IorD && RorW && data_finished) 
       data_way <= data_way_write_register;
@@ -418,24 +383,21 @@ logic DEBUG = 0;
 
 
   /******************* STEP 2a **************************/
-  // Send write requets to memory
+  // Send requets to memory
   logic start_sending_out;
-  // Send read request to memory
   logic response_received;
-//  Address instruction_address_register;
-//  Address data_address_register;
   Address address_register;
   logic [`CELLS_NEEDED_B : 0] current_request_offset;
   always_ff @(posedge clk) begin : make_request
-    // ** Should reach here first
-    // If Instruction is not in cache
+    // Give priority to eviction
     if (eviction_start) begin
       bus_reqtag <= `MEM_WRITE;
       bus_reqcyc <= 1;
       bus_req <= eviction_address;
       eviction_index <= 0;
     end else if (miss) begin
-      bus_req <= address_register & `MEMORY_MASK;// + (current_request_offset * `CELLS_NEEDED_B);
+      //If request is not in cache
+      bus_req <= address_register & `MEMORY_MASK;
       bus_reqtag <= `MEM_READ;
       bus_reqcyc <= 1;
       waiting <= 1;
@@ -449,6 +411,7 @@ logic DEBUG = 0;
     if (bus_reqack) begin
       eviction_start = 0;
       if (evicting) begin
+        // Start sending out eviction
         sent_out <= 0;
 
         bus_reqcyc <= 1;
@@ -459,6 +422,7 @@ logic DEBUG = 0;
         end
         eviction_index <= eviction_index + 1;
       end else begin
+        // Reset and wait for response
         bus_reqcyc <= 0;
         bus_reqtag <= 0;
         bus_req <= 0;
@@ -472,11 +436,11 @@ logic DEBUG = 0;
   logic sent_out;
   logic [2:0] eviction_index;
   always_ff @(posedge clk) begin : receive_response
-    if (sent_out) begin // && bus_respcyc) begin
+    // If finished eviction, reset values
+    if (sent_out) begin
       sent_out <= 0;
       evicting = 0;
 
-      //bus_respack <= 1;
       bus_reqcyc <= 0;
       bus_reqtag <= 0;
       bus_req <= 0;
@@ -486,7 +450,6 @@ logic DEBUG = 0;
     bus_respack <= 0;
     response_received <= 0;
 
-    // ** Should reach here second also
     // Acknowledge that response was received
     if (bus_respcyc) begin
       response_register <= bus_resp;
@@ -494,6 +457,7 @@ logic DEBUG = 0;
       response_received <= 1;
     end
 
+    // Check if we ar reading or invalidating
     if (bus_resptag == `MEM_READ) begin
       waiting <= 0;
       inserting <= 1;
@@ -522,10 +486,12 @@ logic DEBUG = 0;
     invalidated = 0;
 
     if (invalidating) begin
+      // If invalidating, prioritize that
       invalidate(response_register, instruction_way, instruction_way_invalidate_register);
       invalidate(response_register, data_way, data_way_invalidate_register);
       invalidated = 1;
     end else if (response_received) begin
+      // If reading, start building the cache line
       response_cache_line[current_request_offset] = response_register;
       response_added = 1;
     end
@@ -539,6 +505,7 @@ logic DEBUG = 0;
     if (response_added)
       current_request_offset += 1;
 
+    // When the cache line is full, get ready to insert into cache
     ready_to_insert <= 0;
     response_cache_line_register <= 0;
     if (current_request_offset >= `CELLS_NEEDED) begin
@@ -549,6 +516,7 @@ logic DEBUG = 0;
     end
   end
 
+  // Update invalidated cache
   always_ff @(posedge clk) begin
     if (invalidated) begin
       instruction_way <= instruction_way_invalidate_register;
@@ -564,55 +532,23 @@ logic DEBUG = 0;
   always_comb begin
     logic [`DATA_SIZE * `CELLS_NEEDED - 1 : 0] value = response_cache_line_register;
     Address instruction_insert_address, data_insert_address, data_insert_address2;
-    //inserted = 0;
     inserted_instruction_flushed = 0;
     inserted_data_flushed = 0;
 
-/*    if (flushing && ready_to_insert) begin
-      if (flushed_reserver_register.iread) begin
-        inserted = 1;
-        instruction_busy = 0;
-        inserted_instruction_flushed = 1;
-        instruction_insert_address = flushed_instruction_register & `MEMORY_MASK;
-        insert(instruction_insert_address, value, 0, -1, instruction_way, instruction_way_insert_register);
-      end else if (flushed_reserver_register) begin
-        inserted = 1;
-        data_busy = 0;
-        write_busy = 0;
-        inserted_data_flushed = 1;
-        data_insert_address = flushed_data_register & `MEMORY_MASK;
-        insert(data_insert_address, value, 0, -1, data_way, data_way_insert_register);
-      end
-    end else */
-    if (ready_to_insert && IorD) begin// (
-//          (reserver_reg.read1) || 
-//          (reserver_reg.read2) ||
-//          (reserver_reg.write1))) begin
-      //$display("Inserting Read Data - %3d - %b", x, reserver_reg);
+    // Insert into correct cache when ready
+    if (ready_to_insert && IorD) begin
       data_insert_address = address_register  & `MEMORY_MASK;
       insert(data_insert_address, value, 0, -1, data_way, data_way_insert_register);
       inserted = 1;
     end else if (ready_to_insert && !IorD) begin
-      //$display("Inserting Instruction - %3d", x);
       instruction_insert_address = address_register & `MEMORY_MASK;
       insert(instruction_insert_address, value, 0, -1, instruction_way, instruction_way_insert_register);
       inserted = 1;
     end
   end
-
+  
+  // Once inserted into the way register, update the actual way
   always_ff @(posedge clk) begin
-    /*if (inserted_data_flushed) begin
-      //flushing <= 0;
-      flushed_data_register <= 0;
-      data_way <= data_way_insert_register;
-      inserting <= 0;
-    end else if (inserted_instruction_flushed) begin
-      flushing <= 0;
-      flushed_instruction_register <= 0;
-      instruction_way <= instruction_way_insert_register;
-      inserting <= 0;
-    end else*/
-
     if (inserted && !evicting) begin
       inserting <= 0;
       inserted = 0;
@@ -621,26 +557,5 @@ logic DEBUG = 0;
       else
         instruction_way <= instruction_way_insert_register;
     end
-    /*
-    if (inserted && IorD) begin//(
-//          (reserver_reg.read1) || 
-//          (reserver_reg.read2) ||
-//          (reserver_reg.write1))) begin
-    //if (inserted && ((mem_read1 && reserver_reg.read1) || (mem_read2 && reserver_reg.read2))) begin
-      data_way <= data_way_insert_register;
-      inserting <= 0;
-    end else if (inserted && !IorD) begin //instruction_read && reserver_reg.iread) begin
-      instruction_way <= instruction_way_insert_register;
-      inserting <= 0;
-    end*/
   end
-
-  /******************* STEP 5 **************************/
-/*k
-  // Return to processor
-  always_ff @(posedge clk) begin : return_to_processor
-    if (!busy) begin
-  //    instruction_response <= instruction_response_register[`INSTRUCTION_SIZE - 1 : 0];
-    end
-  end*/
 endmodule

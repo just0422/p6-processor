@@ -20,6 +20,7 @@ module issue
   output issue_execute_register iss_exe_reg_2
 );
 
+  // Find an earlier store
   function earlier_store;
     input int lsq_id;
     begin
@@ -47,7 +48,8 @@ module issue
       return 0;
     end
   endfunction
-
+  
+  // Find an earlier jump
   function earlier_jump;
     input int rob_tag;
     begin
@@ -99,8 +101,7 @@ module issue
           !res_stations[i].tag_2) begin // Second tag is free
 
         if (res_stations[i].ctrl_bits.memtoreg) begin
-          //$display("%x - %x - %1d - %1d - %b - %b", rob[res_stations[i].tag - 1].pc, rob[res_stations[i].tag - 1].instruction, res_stations[i].tag, res_stations[i].lsq_id, earlier_store(res_stations[i].lsq_id), earlier_jump(res_stations[i].tag));
-          //$display("%d - %x - %x", res_stations[i].tag, rob[res_stations[i].tag - 1].pc, rob[res_stations[i].tag - 1].instruction);
+          // Wait until there are no more jumps or stores before issuing loads
           if (earlier_store(res_stations[i].lsq_id) || earlier_jump(res_stations[i].tag)) begin
             continue;
           end
