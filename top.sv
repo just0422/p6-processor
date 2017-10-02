@@ -685,7 +685,7 @@ module top
     // If the ROB entry is ready to retire
     if (retire_re.ready && !retire_stall) begin
       if (DEBUG) begin
-        $display("%5d - %x - %x", x, retire_re.pc, retire_re.instruction);
+        //$display("%5d - %x - %x", x, retire_re.pc, retire_re.instruction);
         if (retire_re.instruction == 64'h00008067)
           $display("\tReturn\t%5d - %x - %x", x, retire_re.pc, jumpto);
         else case (retire_re.instruction[6:0])

@@ -1,7 +1,7 @@
 .PHONY: all run clean submit
 
-#RUNELF=/shared/cse502/tests/project/prog1
-RUNELF=/home/jemaldonado/test_files/test
+RUNELF=/shared/cse502/tests/project/prog5
+#RUNELF=/home/jemaldonado/test_files/test
 
 TRACE?=--trace
 HAVETLB=n
