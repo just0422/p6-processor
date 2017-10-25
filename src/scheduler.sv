@@ -211,11 +211,12 @@ module scheduler
       re.rd = rd;
       re.value = immediate;
     end if (ctrl_bits) begin
-      re.rd = rd;
+      if (ctrl_bits.regwr)
+        re.rd = rd;
       re.ctrl_bits = ctrl_bits;
 
       if (ctrl_bits.cjump)
-        re.value = jumpto; // TODO: DANGER: PC + 4 should be here
+        re.value = jumpto; 
     end
   end
 

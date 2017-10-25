@@ -70,7 +70,7 @@ logic DEBUG = 0;
       Word word_value;
       Half half_value;
       Byte byte_value;
-      int offset_bytes;
+      int offset_bits;
 
       cache_address ca = address;
       
@@ -90,7 +90,7 @@ logic DEBUG = 0;
             $display("\t%4d - DATA\tway - %1d\tcache address - %x", x, i, ca);
             //$display("%b - %b - %b", ca.tag, ca.index, ca.offset);
             //$display("way            -  %x", way);
-            $display("\t\tcache line - %x", cl);
+            //$display("\t\tcache line - %x", cl);
           end
 
           read_data_finished = 1;
@@ -103,11 +103,11 @@ logic DEBUG = 0;
           line = cl.cache_cells;
           value_line = cl.cache_cells;
 
-          offset_bytes = ca.offset * 8;
-          double_value = (line >> offset_bytes) & `DOUBLE_MASK;
-          word_value   = (line >> offset_bytes) & `WORD_MASK;
-          half_value   = (line >> offset_bytes) & `HALF_MASK;
-          byte_value   = (line >> offset_bytes) & `BYTE_MASK;
+          offset_bits = ca.offset * 8; 
+          double_value = (line >> offset_bits) & `DOUBLE_MASK;
+          word_value   = (line >> offset_bits) & `WORD_MASK;
+          half_value   = (line >> offset_bits) & `HALF_MASK;
+          byte_value   = (line >> offset_bits) & `BYTE_MASK;
 
           // Filter out correct value based on instruction type
           case(memory_type)
@@ -230,7 +230,7 @@ logic DEBUG = 0;
     input Address address;
     input CacheCells value;
     input dirty;
-    input write_way;
+    input int write_way;
     input full_cache fc_in;
     output full_cache fc_out;
     begin
@@ -244,7 +244,7 @@ logic DEBUG = 0;
       eviction_address = 0;
       eviction_ccs = 0;
       evicting = 0;
-      if (cl.dirty && ca.tag != cl.tag) begin
+      if (cl.valid && cl.dirty && ca.tag != cl.tag) begin
         evict(cl, ca.index);
       end
 
@@ -262,11 +262,11 @@ logic DEBUG = 0;
       response_cache_line = 0;
 
       if (DEBUG) begin
-        $display("\t%4d - INSERT\tway - %1d\tcache address - %x", x, way, ca);
+        $display("\t%4d - INSERT\tway - (%1d,%1d,%1d)\tcache address - %x", x, way, write_way, way_register, ca);
         //$display("cache address  -  %x", ca);
         //$display("%b - %b - %b", ca.tag, ca.index, ca.offset);
         //$display("way            -  %1d", way);
-        $display("\t\tcache line - %x", cl);
+        //$display("\t\tcache line - %x", cl);
       end
 
       fc_out = fc_in;
@@ -291,11 +291,11 @@ logic DEBUG = 0;
       Line shifted_value;
       MemoryWord response = 0;
       cache_address ca = address;
-      int offset_bytes = ca.offset * 8;
-      Line double_line_mask = ~(`DOUBLE_MASK << offset_bytes);
-      Line word_line_mask = ~(`WORD_MASK << offset_bytes);
-      Line half_line_mask = ~(`HALF_MASK << offset_bytes);
-      Line byte_line_mask = ~(`BYTE_MASK << offset_bytes);
+      int offset_bits = ca.offset * 8;
+      Line double_line_mask = ~(`DOUBLE_MASK << offset_bits);
+      Line word_line_mask   = ~(  `WORD_MASK << offset_bits);
+      Line half_line_mask   = ~(  `HALF_MASK << offset_bits);
+      Line byte_line_mask   = ~(  `BYTE_MASK << offset_bits);
       logic write_data_finished = 0;
 
       logic [`WORD - 1 : 0] word = value[`WORD - 1 : 0];
@@ -305,7 +305,7 @@ logic DEBUG = 0;
       // Read line from memory before writing to it
       read_data(address, LD, data_way, write_data_finished, response, write_line, write_way);
       
-      shifted_value = value << offset_bytes;
+      shifted_value = value << offset_bits;
       // Insert value into appropriately divided array
       double_line = write_line;
       double_line &= double_line_mask;
@@ -326,7 +326,7 @@ logic DEBUG = 0;
       // Insert the correct array into cache
       if (write_data_finished) begin
         if (DEBUG) begin
-          $display("\t%4d - STORE - %x - %x", x, address, value);
+          $display("\t%4d - STORE - %x - %x - %1d", x, address, value, write_way);
         end
         case(memory_type)
           SD: insert(address, double_line, 1, write_way, data_way, data_way_write_register);

@@ -37,7 +37,7 @@ module top
   input  [BUS_DATA_WIDTH-1:0] bus_resp,
   input  [BUS_TAG_WIDTH-1:0] bus_resptag
 );
-  logic DEBUG = 1;
+  logic DEBUG = 0;
 
   logic [63:0] pc, next_pc;
 
@@ -45,8 +45,8 @@ module top
   always_ff @(posedge clk) begin
     x++;
     // cyc limit for debuging
-    if (x > 200000)
-      $finish;
+    //if (x > 600000)
+    //  $finish;
   end
 
   // Init data structures
@@ -678,6 +678,8 @@ module top
   MemoryWord write_data;
   logic write_regwr;
   always_ff @(posedge clk) begin
+    longint signed a0 = register_file[10];
+    longint signed a1 = register_file[11];
     write_rd <= 0;
     write_data <= 0;
     write_regwr <= 0;
@@ -691,10 +693,11 @@ module top
         else case (retire_re.instruction[6:0])
           7'b1101111: 
             begin
-              if (retire.rd == 0)
-                $display("\tJump");
-              else
-                $display("\tJAL()\t%5d - %x - %x", x, retire_re.pc, jumpto);
+              //if (retire.rd == 0)
+              //  $display("\tJump");
+              //else
+              if (retire.rd != 0)
+                $display("\tJAL()\t%5d - %x - %x - %4d - %4d - %x", x, retire_re.pc, jumpto, a0, a1, register_file[12]);
             end
           7'b1100111: $display("\tJALR\t%5d - %x - %x", x, retire_re.pc, jumpto);
           //7'b1100011: $display("\tBranch");

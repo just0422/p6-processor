@@ -83,10 +83,6 @@ typedef logic [`NUMBER_OF_REGISTERS_B - 1 : 0]  Register;
 typedef logic [`IMMEDIATE_SIZE - 1 : 0]         Immediate;
 
 
-
-// OFFSET bits will alawys be a multiple of 4
-// TAG SIZE + INDEX + OFFSET
-//   53         5       6
 `define WRITE1          1
 `define WRITE2          `WRITE1 * 2
 `define READ1           `WRITE2 * 2
@@ -103,6 +99,10 @@ typedef struct packed {
   logic write1;
 } cache_reserve;
 
+
+// OFFSET bits will alawys be a multiple of 4
+// TAG SIZE + INDEX + OFFSET
+//   53         5       6
 typedef logic [`TAG_SIZE_B - 1 : 0] cache_tag; 
 typedef logic [`INDEX_SIZE_B - 1 : 0] cache_index;
 typedef logic [`OFFSET_SIZE_B - 1 : 0] cache_offset;

@@ -71,9 +71,9 @@ module alu (
       MULHU,MULH:   result = result_mul[127 : 64];
       MULHSU    :   result = result_mulhsu[127 : 64];
 
-      ADDW      :   result = { {32 {!ctrl_bits.usign & result_add[31] } }, result_addw[31:0] };
-      SUBW      :   result = { {32 {!ctrl_bits.usign & result_sub[31] } }, result_subw[31:0] };
-      MULW      :   result = { {32 {!ctrl_bits.usign & result_mul[31] } }, result_mulw[31:0] };
+      ADDW      :   result = { {32 {!ctrl_bits.usign & result_addw[31] } }, result_addw[31:0] };
+      SUBW      :   result = { {32 {!ctrl_bits.usign & result_subw[31] } }, result_subw[31:0] };
+      MULW      :   result = { {32 {!ctrl_bits.usign & result_mulw[31] } }, result_mulw[31:0] };
       DIVW,DIVUW:   result = { {32 {!ctrl_bits.usign & result_divw[31] } }, result_divw[31:0] };
       REMW,REMUW:   result = { {32 {!ctrl_bits.usign & result_remw[31] } }, result_remw[31:0] };
 

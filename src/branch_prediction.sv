@@ -35,18 +35,22 @@ module branch_predictor
         // Otherwise put it into the BTB
         overwrite_pc = 1;
         next_pc = pc + {{52{instruction[31]}}, instruction[7], instruction[30:25], instruction[11:8], 1'b0};
-        btb[pc_index] = { overwrite_pc, instruction, pc, next_pc };
+        btb[pc_index] = { 1'b1, 
+                          instruction, 
+                          pc, 
+                          pc + {{52{instruction[31]}}, instruction[7], instruction[30:25], instruction[11:8], 1'b0}
+                        };
       end
     end
   end
 
-  always_ff @(posedge clk)
-    btb_register <= btb;
 
   always_ff @(posedge clk) begin
     // If we needed to flush, it means we mispredicted. Fix it.
     if (flush && btb_register[(retire_pc >> 2) % `BTB_SIZE].instruction == retire_instruction)
-      btb_register[retire_instruction].taken <= !btb_register[retire_instruction].taken;
+      btb_register[(retire_pc >> 2) % `BTB_SIZE].taken <= !btb_register[(retire_pc >> 2) % `BTB_SIZE].taken;
+    else
+      btb_register <= btb;
 
   end
 
