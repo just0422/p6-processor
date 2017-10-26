@@ -51,7 +51,6 @@ extern "C" {
 
         case __NR_mmap:
             assert(a0 == 0 && (a3 & MAP_ANONYMOUS)); // only support ANONYMOUS mmap with NULL argument
-            cerr << "mmap, old brk " << std::hex << System::sys->ecall_brk << " size " << std::dec << a1 << endl;
             System::sys->ecall_brk = (System::sys->ecall_brk + PAGE_SIZE-1) & ~(PAGE_SIZE-1); // align to 4K boundary
             *a0ret = System::sys->ecall_brk;
             for(long long addr = System::sys->ecall_brk; addr < System::sys->ecall_brk+a1; ++addr) System::sys->virt_to_phy(addr); // prefault

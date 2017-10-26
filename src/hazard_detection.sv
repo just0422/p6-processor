@@ -8,7 +8,8 @@ module hazard_detection
   input busy, overwrite_pc,
   input mem_write, mem_read,
   input InstructionWord instruction,
-  input data_busy, data_finished1, data_missed1,
+  input data_busy1, data_finished1, data_missed1,
+  input data_busy2, data_finished2, data_missed2,
   input write_busy, write_finished,
   input flushing,
 
@@ -20,7 +21,7 @@ module hazard_detection
   input int rob_head,
 
   // Output
-  output fetch_stall, frontend_stall, backend_stall, retire_stall
+  output fetch_stall, frontend_stall, backend_stall1, backend_stall2, retire_stall
 );
 
   always_comb begin
@@ -37,8 +38,11 @@ module hazard_detection
   end
 
   always_comb begin
-    backend_stall = reset;
-    backend_stall |= data_missed1 || data_busy || data_finished1;
+    backend_stall1 = reset;
+    backend_stall1 |= data_missed1 || data_busy1 || data_finished1;
+
+    backend_stall2 = reset;
+    backend_stall2 |= data_missed2 || data_busy2 || data_finished2;
   end
 
   always_comb begin

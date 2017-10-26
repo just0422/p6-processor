@@ -37,13 +37,16 @@ module top
   input  [BUS_DATA_WIDTH-1:0] bus_resp,
   input  [BUS_TAG_WIDTH-1:0] bus_resptag
 );
-  logic DEBUG = 0;
+logic DEBUG = 0;
 
   logic [63:0] pc, next_pc;
 
   int x = 0;
   always_ff @(posedge clk) begin
     x++;
+
+    if (!(x % 1000000))
+      $display("%d", x);
     // cyc limit for debuging
     //if (x > 600000)
     //  $finish;
@@ -86,7 +89,7 @@ module top
     end
 
   /************************** HAZARD DETECTION *****************************/
-  logic frontend_stall, backend_stall, fetch_stall, retire_stall;
+  logic frontend_stall, backend_stall1, backend_stall2, fetch_stall, retire_stall;
 
   hazard_detection hazards(
     // Housekeeping
@@ -95,7 +98,8 @@ module top
     // Cache hazards
     .busy(busy), .instruction(instruction_response),
     .mem_write(mem_write),
-    .data_busy(data_busy), .data_finished1(data_finished1), .data_missed1(data_missed_lsq1),
+    .data_busy1(mem_read1 & data_busy), .data_finished1(data_finished1), .data_missed1(data_missed_lsq1),
+    .data_busy2(mem_read2 & data_busy), .data_finished2(data_finished2), .data_missed2(data_missed_lsq2),
     .write_busy(write_busy), .write_finished(write_finished),
     .flushing(flushing),
 
@@ -107,7 +111,8 @@ module top
     .rob_head(rob_head),
 
     // Output
-    .backend_stall(backend_stall), // Stall when 1
+    .backend_stall1(backend_stall1), // Stall when 1
+    .backend_stall2(backend_stall2), // Stall when 1
     .frontend_stall(frontend_stall), // Stall when 1
     .fetch_stall(fetch_stall),
     .retire_stall(retire_stall)
@@ -140,6 +145,12 @@ module top
         reserver <= `READ1;
         address <= data_read_address1;
         mem_type <= memory_read_type1;
+      end else if (mem_read2) begin
+        RorW <= 0;
+        IorD <= 1;
+        reserver <= `READ2;
+        address <= data_read_address2;
+        mem_type <= memory_read_type2;
       end else begin // Instruction Read
         RorW <= 0;
         IorD <= 0;
@@ -150,6 +161,7 @@ module top
   
   always_ff @(posedge clk) begin
     data_finished1 <= 0;
+    data_finished2 <= 0;
     if(data_finished) begin
       RorW <= 0;
       IorD <= 0;
@@ -160,6 +172,10 @@ module top
         data_response1 <= cache_response;
         data_finished1 <= 1;
         mem_read1 <= 0;
+      end else if (reserver == `READ2) begin
+        data_response2 <= cache_response;
+        data_finished2 <= 1;
+        mem_read2 <= 0;
       end
     end
   end
@@ -180,6 +196,12 @@ module top
   MemoryWord data_response1;
   Address data_read_address1;
   memory_instruction_type memory_read_type1;
+
+  logic mem_read2;
+  logic data_finished2;
+  MemoryWord data_response2;
+  Address data_read_address2;
+  memory_instruction_type memory_read_type2;
 
   logic mem_write;
   logic write_finished;
@@ -465,11 +487,12 @@ module top
   end
 
   /****************************** ISSUE *******************************/
-  RobSize tag1;
-  LsqSize lsq_id1;
-  ResSize rs_id1;
+  RobSize tag1, tag2;
+  LsqSize lsq_id1, lsq_id2;
+  ResSize rs_id1, rs_id2;
   MemoryWord sourceA1, sourceB1, data1;
-  control_bits ctrl_bits1;
+  MemoryWord sourceA2, sourceB2, data2;
+  control_bits ctrl_bits1, ctrl_bits2;
 
   issue_execute_register ie_reg2;
   issue issue(
@@ -484,26 +507,39 @@ module top
     // Outputs for each pipeline
     .tag1(tag1), .lsq_id1(lsq_id1), .rs_id1(rs_id1), .sourceA1(sourceA1), .sourceB1(sourceB1),
     .data1(data1), .ctrl_bits1(ctrl_bits1),
-    .iss_exe_reg_2(ie_reg2)
+
+    .tag2(tag2), .lsq_id2(lsq_id2), .rs_id2(rs_id2), .sourceA2(sourceA2), .sourceB2(sourceB2),
+    .data2(data2), .ctrl_bits2(ctrl_bits2)
   );
 
   always_ff @(posedge clk) begin
     if (flush) begin
       iss_exe_reg_1 <= 0;
-      iss_exe_reg_2 <= 0;
-    end else if (!backend_stall) begin
+    end else if (!backend_stall1) begin
+      if (DEBUG && tag1 != 0 && 0)
+        $display("\t\t%4d - Went down pipe1, %x - %x, %x - %x", x, rob[tag1 - 1].pc, rob[tag1 - 1].instruction, sourceA1, sourceB1);
       iss_exe_reg_1 <= { tag1, lsq_id1, sourceA1, sourceB1, data1, ctrl_bits1 };
-      iss_exe_reg_2 <= ie_reg2;
       if (rs_id1 > 0)
         res_stations[rs_id1 - 1].busy <= 0;
     end
   end
 
+  always_ff @(posedge clk) begin
+    if (flush) begin
+      iss_exe_reg_2 <= 0;
+    end else if (!backend_stall2) begin
+      if (DEBUG && tag2 != 0 && 0)
+        $display("\t\t%4d - Went down pipe2, %x - %x, %x - %x", x, rob[tag2 - 1].pc, rob[tag2 - 1].instruction, sourceA2, sourceB2);
+      iss_exe_reg_2 <= { tag2, lsq_id2, sourceA2, sourceB2, data2, ctrl_bits2 };
+      if (rs_id2 > 0)
+        res_stations[rs_id2 - 1].busy <= 0;
+    end
+  end
   issue_execute_register iss_exe_reg_1;
   issue_execute_register iss_exe_reg_2;
   /***************************** EXECUTE ******************************/
-  MemoryWord result1;
-  logic take_branch1;
+  MemoryWord result1, result2;
+  logic take_branch1, take_branch2;
 
   alu alu1(
     // Inputs
@@ -515,25 +551,44 @@ module top
     .result(result1),
     .take_branch(take_branch1)
   );
+  alu alu2(
+    // Inputs
+    .ctrl_bits(iss_exe_reg_2.ctrl_bits),
+    .sourceA(iss_exe_reg_2.sourceA),
+    .sourceB(iss_exe_reg_2.sourceB),
+
+    // Outpus
+    .result(result2),
+    .take_branch(take_branch2)
+  );
+
 
   always_ff @(posedge clk) begin
-    if (flush) begin
+    if (flush)
       exe_mem_reg_1 <= 0;
-    end else if (!backend_stall)
+    else if (!backend_stall1)
       exe_mem_reg_1 <= { iss_exe_reg_1.tag, iss_exe_reg_1.lsq_id, take_branch1, result1, 
                          iss_exe_reg_1.data, iss_exe_reg_1.ctrl_bits };
+  end
+
+  always_ff @(posedge clk) begin
+    if (flush)
+      exe_mem_reg_2 <= 0;
+    else if (!backend_stall2)
+      exe_mem_reg_2 <= { iss_exe_reg_2.tag, iss_exe_reg_2.lsq_id, take_branch2, result2, 
+                         iss_exe_reg_2.data, iss_exe_reg_2.ctrl_bits };
   end
 
   execute_memory_register exe_mem_reg_1;
   execute_memory_register exe_mem_reg_2;
   /***************************** MEMORY *******************************/
-  lsq_entry lsq_register[`LSQ_SIZE - 1 : 0];
-  MemoryWord memory_data1;
-  int memory_le_index;
-  lsq_entry memory_le;
-  logic data_missed_lsq1, data_ready1;
-  MemoryWord cache_data1;
-  memory memory(
+  MemoryWord memory_data1, memory_data2;
+  int memory_le_index1, memory_le_index2;
+  lsq_entry memory_le1, memory_le2;
+  logic data_missed_lsq1, data_miss_lsq2;
+  logic data_ready1, data_ready2;
+  MemoryWord cache_data1, cache_data2;
+  memory memory1(
     // Housekeeping
     .clk(clk), .reset(reset),
 
@@ -548,18 +603,42 @@ module top
     .tag(exe_mem_reg_1.tag),
     .lsq_id(exe_mem_reg_1.lsq_id),
 
-    .data_response1(cache_data1),
-    .data_ready1(data_ready1),
+    .data_response(cache_data1),
+    .data_ready(data_ready1),
 
     // Outputs
-    .result1(memory_data1),
-    .lsq_pointer(memory_le_index),
-    .le(memory_le),
+    .result(memory_data1),
+    .lsq_pointer(memory_le_index1),
+    .le(memory_le1),
 
-    .lsq_register(lsq_register),
-
-    .data_missed1(data_missed_lsq1)
+    .data_missed(data_missed_lsq1)
   );
+  memory memory2(
+    // Housekeeping
+    .clk(clk), .reset(reset),
+
+    // Inputs
+    .lsq(lsq),
+    .lsq_head(lsq_head),
+    .lsq_tail(lsq_tail),
+
+    .ctrl_bits(exe_mem_reg_2.ctrl_bits),
+    .address(exe_mem_reg_2.result),
+    .data(exe_mem_reg_2.data),
+    .tag(exe_mem_reg_2.tag),
+    .lsq_id(exe_mem_reg_2.lsq_id),
+
+    .data_response(cache_data2),
+    .data_ready(data_ready2),
+
+    // Outputs
+    .result(memory_data2),
+    .lsq_pointer(memory_le_index2),
+    .le(memory_le2),
+
+    .data_missed(data_missed_lsq2)
+  );
+
 
   always_ff @(posedge clk) begin
     data_ready1 <= 0;
@@ -575,12 +654,35 @@ module top
       data_read_address1 <= exe_mem_reg_1.result;
       mem_read1 <= 1;
       memory_read_type1 <= exe_mem_reg_1.ctrl_bits.memory_type;
-    end else if (!backend_stall) begin
+    end else if (!backend_stall1) begin
       mem_com_reg_1 <= { exe_mem_reg_1.tag, exe_mem_reg_1.take_branch, memory_data1, 
                          exe_mem_reg_1.ctrl_bits };
 
-      if (memory_le)
-        lsq[memory_le_index - 1] <= memory_le;
+      if (memory_le1)
+        lsq[memory_le_index1 - 1] <= memory_le1;
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    data_ready2 <= 0;
+    if (flush) begin
+      mem_com_reg_2 <= 0;
+      mem_read2 <= 0;
+      data_read_address2 <= 0;
+    end else if (data_finished2) begin
+      cache_data2 <= data_response2;
+      data_ready2 <= 1;
+      mem_read2 <= 0;
+    end else if (data_missed_lsq2) begin
+      data_read_address2 <= exe_mem_reg_2.result;
+      mem_read2 <= 1;
+      memory_read_type2 <= exe_mem_reg_2.ctrl_bits.memory_type;
+    end else if (!backend_stall2) begin
+      mem_com_reg_2 <= { exe_mem_reg_2.tag, exe_mem_reg_2.take_branch, memory_data2, 
+                         exe_mem_reg_2.ctrl_bits };
+
+      if (memory_le2)
+        lsq[memory_le_index2 - 1] <= memory_le2;
     end
   end
 
@@ -590,49 +692,82 @@ module top
   int cdb_tag1, cdb_tag2;
   MemoryWord cdb_value1, cdb_value2;
 
-  rob_entry commit_re1;
-  map_table_entry commit_mte1;
+  rob_entry commit_re1, commit_re2;
+  map_table_entry commit_mte1, commit_mte2;
 
-  commit commit(
+  commit commit1(
     // Housekeeping
     .clk(clk), .reset(reset),
 
     // Inputs
-    .data1(mem_com_reg_1.data),                 .data2(mem_com_reg_2.data), 
-    .take_branch1(mem_com_reg_1.take_branch),   .take_branch2(mem_com_reg_2.take_branch),
-    .tag1 (mem_com_reg_1.tag),                  .tag2 (mem_com_reg_2.tag),
-    .ctrl_bits1(mem_com_reg_1.ctrl_bits),       .ctrl_bits2(mem_com_reg_2.ctrl_bits),
+    .data(mem_com_reg_1.data),
+    .take_branch(mem_com_reg_1.take_branch),
+    .tag (mem_com_reg_1.tag),
+    .ctrl_bits(mem_com_reg_1.ctrl_bits),
 
-    .rob_entry1(rob[mem_com_reg_1.tag - 1]),
+    .in_re(rob[mem_com_reg_1.tag - 1]),
     
     // Outputs
-    .cdb_tag1  (cdb_tag1),   .cdb_tag2(cdb_tag2),
-    .cdb_value1(cdb_value1), .cdb_value2(cdb_value2),
+    .cdb_tag  (cdb_tag1),   
+    .cdb_value(cdb_value1),
 
-    .re1(commit_re1),
-    .mte1(commit_mte1)
+    .out_re(commit_re1),
+    .mte(commit_mte1)
+  );
+  commit commit2(
+    // Housekeeping
+    .clk(clk), .reset(reset),
+
+    // Inputs
+    .data(mem_com_reg_2.data),
+    .take_branch(mem_com_reg_2.take_branch),
+    .tag (mem_com_reg_2.tag),
+    .ctrl_bits(mem_com_reg_2.ctrl_bits),
+
+    .in_re(rob[mem_com_reg_2.tag - 1]),
+    
+    // Outputs
+    .cdb_tag  (cdb_tag2),   
+    .cdb_value(cdb_value2),
+
+    .out_re(commit_re2),
+    .mte(commit_mte2)
   );
 
   always_ff @(posedge clk) begin
     logic dispatch_mte_conflict = 0;
-    logic commit1_regwr_match = 0;
+    logic commit_regwr_match = 0;
     if (flush) begin
       cdb1 <= 0;
-      cdb2 <= 0;
-    end else if (!backend_stall) begin
+    end else if (!backend_stall1) begin
       cdb1 <= { cdb_tag1, cdb_value1 };
-      cdb2 <= { cdb_tag2, cdb_value2 };
       
       if (commit_re1)
         rob[commit_re1.tag - 1] <= commit_re1;
 
       dispatch_mte_conflict = dispatch_re.rd == commit_re1.rd && !frontend_stall;
-      commit1_regwr_match = commit_re1.ctrl_bits.regwr && map_table[commit_re1.rd].tag == commit_re1.tag;
-      if (!dispatch_mte_conflict && commit1_regwr_match)
+      commit_regwr_match = commit_re1.ctrl_bits.regwr && map_table[commit_re1.rd].tag == commit_re1.tag;
+      if (!dispatch_mte_conflict && commit_regwr_match)
         map_table[commit_re1.rd] <= commit_mte1;
     end
   end
 
+  always_ff @(posedge clk) begin
+    logic dispatch_mte_conflict = 0;
+    logic commit_regwr_match = 0;
+    if (flush) begin
+      cdb2 <= 0;
+    end else if (!backend_stall2) begin
+      cdb2 <= { cdb_tag2, cdb_value2 };
+      if (commit_re2)
+        rob[commit_re2.tag - 1] <= commit_re2;
+
+      dispatch_mte_conflict = dispatch_re.rd == commit_re2.rd && !frontend_stall;
+      commit_regwr_match = commit_re2.ctrl_bits.regwr && map_table[commit_re2.rd].tag == commit_re2.tag;
+      if (!dispatch_mte_conflict && commit_regwr_match)
+        map_table[commit_re2.rd] <= commit_mte2;
+    end
+  end
 
   
   /***************************** RETIRE *******************************/
@@ -687,7 +822,7 @@ module top
     // If the ROB entry is ready to retire
     if (retire_re.ready && !retire_stall) begin
       if (DEBUG) begin
-        //$display("%5d - %x - %x", x, retire_re.pc, retire_re.instruction);
+        $display("%5d - %x - %x - %x <-> %x", x, retire_re.pc, retire_re.instruction, register_file[13], register_file[14]);
         if (retire_re.instruction == 64'h00008067)
           $display("\tReturn\t%5d - %x - %x", x, retire_re.pc, jumpto);
         else case (retire_re.instruction[6:0])
@@ -715,7 +850,8 @@ module top
 
         if (map_table[retire_re.rd].tag == retire_re.tag && 
             (dispatch_re.rd != retire_re.rd || frontend_stall) &&
-            (commit_re1.rd != retire_re.rd || backend_stall))
+            (commit_re1.rd != retire_re.rd || backend_stall1) &&
+            (commit_re2.rd != retire_re.rd || backend_stall2))
           map_table[retire_re.rd] <= retire_mte;
       end
 

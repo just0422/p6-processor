@@ -2,7 +2,7 @@
 `define BLOCK_SIZE                  64
 `define BUS_DATA_WIDTH              64
 `define BUS_TAG_WIDTH               13
-`define BTB_SIZE                    4
+`define BTB_SIZE                    32
 `define CELLS_NEEDED                8
 `define CELLS_NEEDED_B              $clog2(`CELLS_NEEDED - 1)
 `define DATA_SIZE                   64

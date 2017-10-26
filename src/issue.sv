@@ -12,12 +12,13 @@ module issue
   input int lsq_head, lsq_tail,
 
   // Output Needed Issue values
-  output RobSize tag1, 
-  output ResSize rs_id1,
-  output LsqSize lsq_id1, 
-  output MemoryWord sourceA1, sourceB1, data1,
-  output control_bits ctrl_bits1,
-  output issue_execute_register iss_exe_reg_2
+  output RobSize tag1,              tag2, 
+  output ResSize rs_id1,            rs_id2,
+  output LsqSize lsq_id1,           lsq_id2, 
+  output MemoryWord sourceA1,       sourceA2,
+  output MemoryWord sourceB1,       sourceB2,
+  output MemoryWord data1,          data2,
+  output control_bits ctrl_bits1,   ctrl_bits2
 );
 
   // Find an earlier store
@@ -82,8 +83,8 @@ module issue
 
   
   always_comb begin : issue
-    int first_selected;
-    int second_selected;
+    logic first_selected = 0;
+
     tag1 = 0;
     lsq_id1 = 0;
     rs_id1 = 0;
@@ -92,7 +93,14 @@ module issue
     data1 = 0;
     ctrl_bits1 = 0;
 
-    iss_exe_reg_2 = 0;
+    tag2 = 0;
+    lsq_id2 = 0;
+    rs_id2 = 0;
+    sourceA2 = 0;
+    sourceB2 = 0;
+    data2 = 0;
+    ctrl_bits2 = 0;
+
 
     // Check all reservation stations
     for (int i = 0; i < `RS_SIZE; i++) begin
@@ -112,25 +120,46 @@ module issue
               continue;
           end
         end
-        sourceA1 = res_stations[i].value_1;
+        
+        if (!first_selected) begin
+          sourceA1 = res_stations[i].value_1;
 
-        // If it's an i-instruction
-        if (res_stations[i].ctrl_bits.alusrc)
-          sourceB1 = res_stations[i].imm;
-        else
-          sourceB1 = res_stations[i].value_2;
+          // If it's an i-instruction
+          if (res_stations[i].ctrl_bits.alusrc)
+            sourceB1 = res_stations[i].imm;
+          else
+            sourceB1 = res_stations[i].value_2;
 
-        // Stores
-        if (res_stations[i].ctrl_bits.memwr)
-          data1 = res_stations[i].value_2;
+          // Stores
+          if (res_stations[i].ctrl_bits.memwr)
+            data1 = res_stations[i].value_2;
 
-        ctrl_bits1 = res_stations[i].ctrl_bits;
-        rs_id1 = res_stations[i].id;
-        tag1 = res_stations[i].tag;
-        lsq_id1 = res_stations[i].lsq_id;
-        break;
+          ctrl_bits1 = res_stations[i].ctrl_bits;
+          rs_id1 = res_stations[i].id;
+          tag1 = res_stations[i].tag;
+          lsq_id1 = res_stations[i].lsq_id;
+
+          first_selected = 1;
+        end else begin
+           sourceA2 = res_stations[i].value_1;
+
+          // If it's an i-instruction
+          if (res_stations[i].ctrl_bits.alusrc)
+            sourceB2 = res_stations[i].imm;
+          else
+            sourceB2 = res_stations[i].value_2;
+
+          // Stores
+          if (res_stations[i].ctrl_bits.memwr)
+            data2 = res_stations[i].value_2;
+
+          ctrl_bits2 = res_stations[i].ctrl_bits;
+          rs_id2 = res_stations[i].id;
+          tag2 = res_stations[i].tag;
+          lsq_id2 = res_stations[i].lsq_id;
+          break;
+        end
       end
     end
   end
-  
 endmodule

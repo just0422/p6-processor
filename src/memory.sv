@@ -16,23 +16,23 @@ module memory
   input int lsq_head, lsq_tail,
   
   // Outut
-  output MemoryWord result1,
+  output MemoryWord result,
 
   output int lsq_pointer,
   output lsq_entry le,
   output lsq_entry lsq_register[`LSQ_SIZE - 1 : 0],
 
-  output data_missed1,
+  output data_missed,
 
   // Cache interface
-  input                          data_ready1,    data_readyy2,
-  input MemoryWord               data_response1, data_response2
+  input                          data_ready,
+  input MemoryWord               data_response
 );
 
 
   always_comb begin
     if (!(ctrl_bits.memwr || ctrl_bits.memtoreg))
-      result1 = address;
+      result = address;
   end
 
   always_comb begin
@@ -40,7 +40,7 @@ module memory
     lsq_pointer = 0;
     le = 0;
     lsq_register = lsq;
-    data_missed1 = 0;
+    data_missed = 0;
 
     if(ctrl_bits.memwr) begin
       le = lsq[lsq_id - 1];
@@ -52,15 +52,15 @@ module memory
     end
     
     if (ctrl_bits.memtoreg) begin
-      if (!data_ready1)
-        data_missed1 = 1;
+      if (!data_ready)
+        data_missed = 1;
       else begin
-        result1 = data_response1;
+        result = data_response;
         lsq_pointer = lsq_id;
 
         le = lsq[lsq_id - 1];
         le.ready = 1;
-        le.value = data_response1;
+        le.value = data_response;
       end
     end
   end
