@@ -45,8 +45,8 @@ logic DEBUG = 0;
   always_ff @(posedge clk) begin
     x++;
 
-    if (!(x % 1000000))
-      $display("%d", x);
+    //if (!(x % 1000000))
+    //  $display("%d", x);
     // cyc limit for debuging
     //if (x > 600000)
     //  $finish;
